@@ -62,6 +62,18 @@ CREATE TABLE IF NOT EXISTS movimiento (
     )
 );
 
+-- Idempotente: crear columna 'observaciones' si no existe
+SET @col_exists := (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = 'logitrack_db' AND TABLE_NAME = 'movimiento' AND COLUMN_NAME = 'observaciones'
+);
+SET @ddl := IF(@col_exists = 0,
+    'ALTER TABLE movimiento ADD COLUMN observaciones VARCHAR(500) NULL',
+    'SELECT 1'
+);
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+
 -- Tabla Detalle Movimiento
 CREATE TABLE IF NOT EXISTS movimiento_detalle (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,

@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
+import java.math.BigDecimal;
 
 @Data
 @NoArgsConstructor
@@ -29,7 +30,7 @@ public class ReporteResumen {
     public static class StockPorBodega {
         private String bodega;
         private Integer totalProductos;
-        private Double valorTotal;
+        private BigDecimal valorTotal;
     }
 
     @Data
@@ -46,6 +47,6 @@ public class ReporteResumen {
     public static class CategoriaResumen {
         private String categoria;
         private Integer stockTotal;
-        private Double valorTotal;
+        private BigDecimal valorTotal;
     }
 }

@@ -7,6 +7,7 @@ import com.logitrack.config.AuditoriaListener;
 
 @Entity
 @Table(name = "bodega")
+@EntityListeners(AuditoriaListener.class)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

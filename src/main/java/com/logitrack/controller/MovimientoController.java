@@ -59,8 +59,9 @@ public class MovimientoController {
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = MovimientoResponse.class)))
     })
-    public ResponseEntity<List<MovimientoResponse>> getByTipo(@PathVariable Movimiento.TipoMovimiento tipo) {
-        return ResponseEntity.ok(service.findByTipo(tipo));
+    public ResponseEntity<List<MovimientoResponse>> getByTipo(@PathVariable String tipo) {
+        Movimiento.TipoMovimiento t = Movimiento.TipoMovimiento.valueOf(tipo.toUpperCase());
+        return ResponseEntity.ok(service.findByTipo(t));
     }
 
     @GetMapping("/bodega/{bodegaId}")

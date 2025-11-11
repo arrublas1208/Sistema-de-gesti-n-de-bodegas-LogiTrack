@@ -51,8 +51,9 @@ public class AuditoriaController {
 
     @GetMapping("/operacion/{operacion}")
     @Operation(summary = "Obtener auditoría por tipo de operación")
-    public ResponseEntity<List<Auditoria>> getByOperacion(@PathVariable Auditoria.Operacion operacion) {
-        return ResponseEntity.ok(service.findByOperacion(operacion));
+    public ResponseEntity<List<Auditoria>> getByOperacion(@PathVariable String operacion) {
+        Auditoria.Operacion op = Auditoria.Operacion.valueOf(operacion.toUpperCase());
+        return ResponseEntity.ok(service.findByOperacion(op));
     }
 
     @GetMapping("/rango-fechas")

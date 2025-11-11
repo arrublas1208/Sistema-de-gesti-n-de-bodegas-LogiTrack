@@ -14,6 +14,8 @@ import org.springframework.beans.factory.annotation.Value;
 
 import java.util.List;
 import java.util.Map;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.stream.Collectors;
 
 @Service
@@ -64,13 +66,15 @@ public class ReporteService {
                     int totalProductos = inventarios.stream()
                             .mapToInt(inv -> inv.getStock() != null ? inv.getStock() : 0)
                             .sum();
-                    double valorTotal = inventarios.stream()
-                            .mapToDouble(inv -> {
+                    BigDecimal valorTotal = inventarios.stream()
+                            .map(inv -> {
                                 int stock = inv.getStock() != null ? inv.getStock() : 0;
-                                double precio = inv.getProducto() != null && inv.getProducto().getPrecio() != null ? inv.getProducto().getPrecio() : 0.0;
-                                return stock * precio;
+                                BigDecimal precio = inv.getProducto() != null && inv.getProducto().getPrecio() != null
+                                        ? inv.getProducto().getPrecio() : BigDecimal.ZERO;
+                                return precio.multiply(BigDecimal.valueOf(stock));
                             })
-                            .sum();
+                            .reduce(BigDecimal.ZERO, BigDecimal::add)
+                            .setScale(2, RoundingMode.HALF_UP);
                     return new ReporteResumen.StockPorBodega(b.getNombre(), totalProductos, valorTotal);
                 })
                 .collect(Collectors.toList());
@@ -85,12 +89,17 @@ public class ReporteService {
                     int stockTotal = e.getValue().stream()
                             .mapToInt(p -> p.getStock() != null ? p.getStock() : 0)
                             .sum();
-                    double valorTotal = e.getValue().stream()
-                            .mapToDouble(p -> (p.getStock() != null ? p.getStock() : 0) * (p.getPrecio() != null ? p.getPrecio() : 0.0))
-                            .sum();
+                    BigDecimal valorTotal = e.getValue().stream()
+                            .map(p -> {
+                                int stock = p.getStock() != null ? p.getStock() : 0;
+                                BigDecimal precio = p.getPrecio() != null ? p.getPrecio() : BigDecimal.ZERO;
+                                return precio.multiply(BigDecimal.valueOf(stock));
+                            })
+                            .reduce(BigDecimal.ZERO, BigDecimal::add)
+                            .setScale(2, RoundingMode.HALF_UP);
                     return new ReporteResumen.CategoriaResumen(categoria, stockTotal, valorTotal);
                 })
-                .sorted((a, b) -> Double.compare(b.getValorTotal(), a.getValorTotal()))
+                .sorted((a, b) -> b.getValorTotal().compareTo(a.getValorTotal()))
                 .collect(Collectors.toList());
 
         return ReporteResumen.builder()

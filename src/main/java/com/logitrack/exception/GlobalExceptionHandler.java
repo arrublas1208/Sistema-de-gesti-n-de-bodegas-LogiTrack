@@ -7,7 +7,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import java.util.*;
 import java.time.LocalDateTime;
 
-@RestControllerAdvice
+@RestControllerAdvice(basePackages = "com.logitrack.controller")
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

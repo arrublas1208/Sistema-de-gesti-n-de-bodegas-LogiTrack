@@ -1,6 +1,7 @@
 package com.logitrack.model;
 
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.logitrack.config.AuditoriaListener;
 import jakarta.validation.constraints.*;
 import lombok.*;
@@ -20,6 +21,7 @@ public class MovimientoDetalle {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "movimiento_id", nullable = false)
     @NotNull
+    @JsonBackReference
     private Movimiento movimiento;
 
     @ManyToOne(fetch = FetchType.EAGER)

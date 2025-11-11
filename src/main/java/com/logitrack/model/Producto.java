@@ -4,9 +4,11 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
 import com.logitrack.config.AuditoriaListener;
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "producto")
+@EntityListeners(AuditoriaListener.class)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -33,5 +35,5 @@ public class Producto {
 
     @DecimalMin("0.01")
     @Column(nullable = false, precision = 10, scale = 2)
-    private Double precio;
+    private BigDecimal precio;
 }

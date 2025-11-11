@@ -3,6 +3,47 @@
 
 ---
 
+## 🖥️ Estado del Frontend (Actualización)
+
+Durante esta sesión se estabilizó y modernizó la entrega del frontend:
+
+- Eliminado Babel en el navegador y los presets/plugins que generaban errores.
+- Sustituido optional chaining/nullish coalescing y spreads por sintaxis compatible.
+- Creado proyecto Vite React en `frontend/` y configurado el build para salir a `src/main/resources/static`.
+- Generado bundle de producción (JS/CSS) y verificado carga en `http://localhost:8086/`.
+
+### Cómo construir y ejecutar
+
+1) Backend (Spring Boot)
+- `mvn spring-boot:run` o `mvn spring-boot:run -Dspring-boot.run.arguments=--server.port=8086`
+
+2) Frontend (build estático con Vite)
+- `cd frontend`
+- `npm install`
+- `npm run build`
+
+El build publica:
+- `src/main/resources/static/index.html`
+- `src/main/resources/static/assets/index-*.js`
+- `src/main/resources/static/assets/index-*.css`
+
+El frontend usa `API_BASE = window.location.origin + "/api"`; por lo tanto, el backend debe servir los endpoints bajo `/api` en el mismo origen.
+
+### Endpoints consumidos por la UI (y campos esperados)
+
+- `GET /api/bodegas` → `[ { id, nombre, direccion, capacidad } ]`
+- `GET /api/productos` → `[ { id, nombre, categoria, precio, stock } ]`
+- `GET /api/movimientos` → `[ { id, fecha, tipo, usuario, bodegaOrigen, bodegaDestino, detalles: [ { producto, cantidad } ] } ]`
+- `POST /api/movimientos` → body `{ tipo, usuarioId, bodegaOrigenId?, bodegaDestinoId?, detalles: [ { productoId, cantidad } ], observaciones }`
+- `GET /api/inventario` → `[ { id, bodega: { nombre }, producto: { nombre }, stock, stockMinimo } ]`
+- `GET /api/inventario/bodega/{id}` → igual a `/api/inventario` filtrado por bodega
+- `GET /api/reportes/resumen?threshold={n}` → `{ threshold, stockBajo: [ { id, nombre, categoria, precio, stock } ], resumenPorCategoria: [ { categoria, stockTotal, valorTotal } ], stockPorBodega: [ { bodega, totalProductos, valorTotal } ] }`
+- `GET /api/reportes/movimientos/ultimos` → últimos 10 movimientos (misma forma que `/api/movimientos`)
+- `GET /api/reportes/movimientos/top-productos` → `[ { producto, totalMovido } ]`
+- `GET /api/auditoria/ultimas` → `[ { id, fecha, entidad, operacion, usuario: { nombreCompleto } } ]`
+
+---
+
 ## 🎯 Estado del Proyecto
 
 ### ✅ COMPLETADO - Día 1 Extendido
@@ -18,6 +59,36 @@
 - ✅ Manejo global de excepciones
 
 ---
+
+## 📋 Pendientes del Frontend respecto al Backend
+
+- Estandarizar `usuario` en `/api/movimientos` (cadena vs objeto) y asegurar presencia de `usuarioId` en POST.
+- Paginación y ordenamiento para `movimientos`, `inventario` y `auditoria` (APIs y UI).
+- Filtros de servidor (por fecha, tipo, bodega, usuario) para evitar procesamiento pesado en el cliente.
+- Contrato de errores uniforme: `{ message, details: { message } }` para mejor extracción en `api()`.
+- Validar y documentar posibles `null` en campos opcionales; garantizar forma estable para la UI.
+- CORS de desarrollo: permitir `vite dev` con proxy si se usa frontend en servidor independiente.
+- Estados de carga y error visibles en todas las vistas (Inventario, Reportes, Auditoría).
+- Tests de integración mínimos del frontend (render y llamadas a API simuladas).
+- Assets locales para íconos (evitar CDN de FontAwesome en entornos restringidos).
+- i18n básica (ES) si se requiere.
+
+### Despliegue en Tomcat (pendiente)
+
+- Cambiar `pom.xml` a `packaging = war` y agregar `spring-boot-starter-tomcat` con `provided`.
+- Añadir clase `SpringBootServletInitializer` para WAR.
+- Definir `server.servlet.context-path` (por ejemplo, `/logitrack`).
+- Verificar que los estáticos empaquetados por Vite estén dentro del WAR y se sirvan correctamente.
+- Probar despliegue en Tomcat 9/10: copiar WAR a `webapps/` y validar rutas `/api` y assets.
+
+---
+ 
+## 📚 Documentación complementaria
+- `PENDIENTES.md` → Backlog integral (Backend, Frontend, Seguridad, Tomcat).
+- `FRONTEND_PENDIENTES.md` → Detalle de UX/Estados/Pruebas/Performance/i18n.
+- `SEGURIDAD.md` → Autenticación/Autorización, CORS/CSRF, cabeceras, validación y criterios.
+- `DEPLOY_TOMCAT.md` → Empaquetado WAR, `SpringBootServletInitializer`, context-path, y despliegue.
+
 
 ## 📊 Arquitectura del Sistema
 

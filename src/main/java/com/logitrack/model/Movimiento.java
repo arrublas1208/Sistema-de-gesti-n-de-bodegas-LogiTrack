@@ -1,6 +1,7 @@
 package com.logitrack.model;
 
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.logitrack.config.AuditoriaListener;
 import jakarta.validation.constraints.*;
 import lombok.*;
@@ -10,6 +11,7 @@ import java.util.List;
 
 @Entity
 @Table(name = "movimiento")
+@EntityListeners(AuditoriaListener.class)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -41,6 +43,7 @@ public class Movimiento {
     private Bodega bodegaDestino;
 
     @OneToMany(mappedBy = "movimiento", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference
     @Builder.Default
     private List<MovimientoDetalle> detalles = new ArrayList<>();
 
