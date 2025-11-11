@@ -230,3 +230,43 @@ GET http://localhost:8080/api/bodegas/999
 - Sistema de Auditoría
 - Autenticación y Autorización
 - Reportes avanzados
+
+---
+
+## Reportes: Resumen y Stock Bajo
+
+### 6.1 Resumen de reportes (umbral configurable)
+```http
+GET http://localhost:8080/api/reportes/resumen
+```
+**Expectativa**: 200 OK. El JSON incluye `threshold` (por defecto `10`) y `maxThreshold` (por defecto `1000`).
+
+```http
+GET http://localhost:8080/api/reportes/resumen?threshold=50
+```
+**Expectativa**: 200 OK. El JSON incluye `threshold: 50` y `maxThreshold` actual.
+
+```http
+GET http://localhost:8080/api/reportes/resumen?threshold=-1
+```
+**Expectativa**: 400 BAD REQUEST (`BusinessException`: "El parámetro 'threshold' debe ser mayor o igual a 0").
+
+```http
+GET http://localhost:8080/api/reportes/resumen?threshold=1001
+```
+**Expectativa**: 400 BAD REQUEST (`BusinessException`: incluye el `maxThreshold` configurado).
+
+### 6.2 Productos con stock bajo (umbral configurable)
+```http
+GET http://localhost:8080/api/reportes/stock-bajo
+```
+**Expectativa**: 200 OK. Devuelve arreglo de productos con stock `< threshold` por defecto.
+
+```http
+GET http://localhost:8080/api/reportes/stock-bajo?threshold=25
+```
+**Expectativa**: 200 OK. Devuelve arreglo filtrado con `threshold=25`.
+
+**Notas**
+- Si no se suministra `threshold`, se usa `reportes.stock-bajo.threshold`.
+- Validación: `0 <= threshold <= reportes.stock-bajo.max-threshold`.

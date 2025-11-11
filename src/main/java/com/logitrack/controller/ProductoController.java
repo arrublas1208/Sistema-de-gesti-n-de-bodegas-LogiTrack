@@ -3,6 +3,11 @@ package com.logitrack.controller;
 import com.logitrack.model.Producto;
 import com.logitrack.service.ProductoService;
 import io.swagger.v3.oas.annotations.*;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import com.logitrack.dto.ErrorResponseDTO;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +30,14 @@ public class ProductoController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Obtener producto por ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "OK - Producto encontrado",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = Producto.class))),
+            @ApiResponse(responseCode = "404", description = "NOT FOUND - Producto no encontrado",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponseDTO.class)))
+    })
     public ResponseEntity<Producto> getById(@PathVariable Long id) {
         return ResponseEntity.ok(service.findById(id));
     }
@@ -43,18 +56,43 @@ public class ProductoController {
 
     @PostMapping
     @Operation(summary = "Crear nuevo producto")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "CREATED - Producto creado",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = Producto.class))),
+            @ApiResponse(responseCode = "400", description = "BAD REQUEST - Error de negocio/validación",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponseDTO.class)))
+    })
     public ResponseEntity<Producto> create(@Valid @RequestBody Producto producto) {
         return new ResponseEntity<>(service.save(producto), HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Actualizar producto existente")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "OK - Producto actualizado",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = Producto.class))),
+            @ApiResponse(responseCode = "400", description = "BAD REQUEST - Error de negocio/validación",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponseDTO.class))),
+            @ApiResponse(responseCode = "404", description = "NOT FOUND - Producto no encontrado",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponseDTO.class)))
+    })
     public ResponseEntity<Producto> update(@PathVariable Long id, @Valid @RequestBody Producto producto) {
         return ResponseEntity.ok(service.update(id, producto));
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Eliminar producto")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "NO CONTENT - Producto eliminado"),
+            @ApiResponse(responseCode = "404", description = "NOT FOUND - Producto no encontrado",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponseDTO.class)))
+    })
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         service.delete(id);
         return ResponseEntity.noContent().build();

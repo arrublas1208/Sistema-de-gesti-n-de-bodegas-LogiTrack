@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
 import java.time.LocalDateTime;
+import com.logitrack.config.AuditoriaListener;
 
 @Entity
 @Table(name = "inventario_bodega",

@@ -386,6 +386,29 @@ Preparado para:
 - Movimientos por fecha
 - Transferencias entre bodegas
 
+### Endpoints de Reportes
+
+- `GET /api/reportes/resumen`
+  - Parámetros: `threshold` (query, opcional)
+  - Comportamiento:
+    - Si no se envía `threshold`, se usa `reportes.stock-bajo.threshold` (por defecto `10`).
+    - Validación: `0 <= threshold <= reportes.stock-bajo.max-threshold` (por defecto `1000`).
+  - Respuesta (`ReporteResumen`):
+    - `stockPorBodega[]`, `productosMasMovidos[]`, `stockBajo[]`, `resumenPorCategoria[]`
+    - `threshold`: umbral aplicado en el cálculo.
+    - `maxThreshold`: límite máximo permitido (configurable en `application.properties`).
+  - Ejemplos:
+    - `curl "http://localhost:8080/api/reportes/resumen"`
+    - `curl "http://localhost:8080/api/reportes/resumen?threshold=50"`
+    - Errores 400: `threshold=-1`, `threshold>maxThreshold`
+
+- `GET /api/reportes/stock-bajo`
+  - Parámetros: `threshold` (query, opcional)
+  - Comportamiento: mismo manejo de umbral que `/resumen`; devuelve solo el arreglo `stockBajo`.
+  - Ejemplos:
+    - `curl "http://localhost:8080/api/reportes/stock-bajo"`
+    - `curl "http://localhost:8080/api/reportes/stock-bajo?threshold=25"`
+
 ---
 
 ## 🔧 Tecnologías Utilizadas

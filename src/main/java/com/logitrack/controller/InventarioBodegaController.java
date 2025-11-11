@@ -3,6 +3,11 @@ package com.logitrack.controller;
 import com.logitrack.model.InventarioBodega;
 import com.logitrack.service.InventarioBodegaService;
 import io.swagger.v3.oas.annotations.*;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import com.logitrack.dto.ErrorResponseDTO;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +31,14 @@ public class InventarioBodegaController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Obtener inventario por ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "OK - Inventario encontrado",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = InventarioBodega.class))),
+            @ApiResponse(responseCode = "404", description = "NOT FOUND - Inventario no encontrado",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponseDTO.class)))
+    })
     public ResponseEntity<InventarioBodega> getById(@PathVariable Long id) {
         return ResponseEntity.ok(service.findById(id));
     }
@@ -71,12 +84,31 @@ public class InventarioBodegaController {
 
     @PostMapping
     @Operation(summary = "Crear nuevo registro de inventario")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "CREATED - Inventario creado",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = InventarioBodega.class))),
+            @ApiResponse(responseCode = "400", description = "BAD REQUEST - Error de negocio/validación",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponseDTO.class)))
+    })
     public ResponseEntity<InventarioBodega> create(@Valid @RequestBody InventarioBodega inventario) {
         return new ResponseEntity<>(service.save(inventario), HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Actualizar inventario existente")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "OK - Inventario actualizado",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = InventarioBodega.class))),
+            @ApiResponse(responseCode = "400", description = "BAD REQUEST - Error de negocio/validación",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponseDTO.class))),
+            @ApiResponse(responseCode = "404", description = "NOT FOUND - Inventario no encontrado",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponseDTO.class)))
+    })
     public ResponseEntity<InventarioBodega> update(
             @PathVariable Long id,
             @Valid @RequestBody InventarioBodega inventario) {
@@ -85,6 +117,17 @@ public class InventarioBodegaController {
 
     @PatchMapping("/bodega/{bodegaId}/producto/{productoId}/ajustar")
     @Operation(summary = "Ajustar stock de un producto en una bodega (positivo para sumar, negativo para restar)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "OK - Stock ajustado",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = InventarioBodega.class))),
+            @ApiResponse(responseCode = "400", description = "BAD REQUEST - Error de negocio/validación",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponseDTO.class))),
+            @ApiResponse(responseCode = "404", description = "NOT FOUND - Inventario no encontrado",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponseDTO.class)))
+    })
     public ResponseEntity<InventarioBodega> ajustarStock(
             @PathVariable Long bodegaId,
             @PathVariable Long productoId,
@@ -94,6 +137,12 @@ public class InventarioBodegaController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Eliminar inventario")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "NO CONTENT - Inventario eliminado"),
+            @ApiResponse(responseCode = "404", description = "NOT FOUND - Inventario no encontrado",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponseDTO.class)))
+    })
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         service.delete(id);
         return ResponseEntity.noContent().build();

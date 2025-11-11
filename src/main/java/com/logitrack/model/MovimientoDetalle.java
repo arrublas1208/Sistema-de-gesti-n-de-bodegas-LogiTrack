@@ -1,6 +1,7 @@
 package com.logitrack.model;
 
 import jakarta.persistence.*;
+import com.logitrack.config.AuditoriaListener;
 import jakarta.validation.constraints.*;
 import lombok.*;
 

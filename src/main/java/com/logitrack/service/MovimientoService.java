@@ -69,6 +69,30 @@ public class MovimientoService {
                 .collect(Collectors.toList());
     }
 
+    public List<MovimientoResponse> search(Movimiento.TipoMovimiento tipo,
+                                           Long usuarioId,
+                                           Long bodegaId,
+                                           LocalDateTime inicio,
+                                           LocalDateTime fin) {
+        List<Movimiento> base = (tipo != null) ? movimientoRepository.findByTipo(tipo) : movimientoRepository.findAll();
+
+        return base.stream()
+                .filter(m -> usuarioId == null || (m.getUsuario() != null && usuarioId.equals(m.getUsuario().getId())))
+                .filter(m -> {
+                    if (bodegaId == null) return true;
+                    Long origenId = m.getBodegaOrigen() != null ? m.getBodegaOrigen().getId() : null;
+                    Long destinoId = m.getBodegaDestino() != null ? m.getBodegaDestino().getId() : null;
+                    return (origenId != null && bodegaId.equals(origenId)) || (destinoId != null && bodegaId.equals(destinoId));
+                })
+                .filter(m -> {
+                    if (inicio != null && m.getFecha().isBefore(inicio)) return false;
+                    if (fin != null && m.getFecha().isAfter(fin)) return false;
+                    return true;
+                })
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
     public MovimientoResponse create(MovimientoRequest request) {
         log.info("Creando movimiento tipo: {}", request.getTipo());
 
@@ -154,6 +178,11 @@ public class MovimientoService {
 
         log.info("Movimiento creado exitosamente: ID={}", saved.getId());
         return toResponse(saved);
+    }
+
+    // Compatibilidad con especificación del documento (alias de create)
+    public MovimientoResponse registrar(MovimientoRequest request) {
+        return create(request);
     }
 
     private void validarStockDisponible(Bodega bodega, Producto producto, Integer cantidadRequerida) {
@@ -257,6 +286,11 @@ public class MovimientoService {
                         .collect(Collectors.toList()))
                 .observaciones(movimiento.getObservaciones())
                 .build();
+    }
+
+    // Método de apoyo público para reusar el mapeo desde otros controladores
+    public MovimientoResponse toResponsePublic(Movimiento movimiento) {
+        return toResponse(movimiento);
     }
 
     public void delete(Long id) {
