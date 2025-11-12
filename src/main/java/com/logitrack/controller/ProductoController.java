@@ -12,6 +12,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
@@ -23,9 +26,12 @@ public class ProductoController {
     private final ProductoService service;
 
     @GetMapping
-    @Operation(summary = "Obtener todos los productos")
-    public ResponseEntity<List<Producto>> getAll() {
-        return ResponseEntity.ok(service.findAll());
+    @Operation(summary = "Listar productos con paginación/orden y filtros opcionales")
+    public ResponseEntity<Page<Producto>> getAll(
+            @RequestParam(required = false) String categoria,
+            @RequestParam(required = false) String nombreLike,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(service.search(categoria, nombreLike, pageable));
     }
 
     @GetMapping("/{id}")

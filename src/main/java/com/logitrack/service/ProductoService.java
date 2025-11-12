@@ -4,6 +4,8 @@ import com.logitrack.exception.ResourceNotFoundException;
 import com.logitrack.exception.BusinessException;
 import com.logitrack.model.Producto;
 import com.logitrack.repository.ProductoRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,5 +55,20 @@ public class ProductoService {
 
     public List<Producto> findTopMovers() {
         return repository.findTopMovers();
+    }
+
+    public Page<Producto> search(String categoria, String nombreLike, Pageable pageable) {
+        boolean hasCategoria = categoria != null && !categoria.isBlank();
+        boolean hasNombre = nombreLike != null && !nombreLike.isBlank();
+        if (hasCategoria && hasNombre) {
+            return repository.findByCategoriaContainingIgnoreCaseAndNombreContainingIgnoreCase(categoria, nombreLike, pageable);
+        }
+        if (hasCategoria) {
+            return repository.findByCategoriaContainingIgnoreCase(categoria, pageable);
+        }
+        if (hasNombre) {
+            return repository.findByNombreContainingIgnoreCase(nombreLike, pageable);
+        }
+        return repository.findAll(pageable);
     }
 }

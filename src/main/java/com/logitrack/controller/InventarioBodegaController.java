@@ -12,6 +12,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
@@ -24,9 +27,11 @@ public class InventarioBodegaController {
     private final InventarioBodegaService service;
 
     @GetMapping
-    @Operation(summary = "Obtener todo el inventario")
-    public ResponseEntity<List<InventarioBodega>> getAll() {
-        return ResponseEntity.ok(service.findAll());
+    @Operation(summary = "Listar inventario con paginación/orden y filtro opcional por stockMinimo")
+    public ResponseEntity<Page<InventarioBodega>> getAll(
+            @RequestParam(required = false) Integer stockMinimo,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(service.findAll(pageable, stockMinimo));
     }
 
     @GetMapping("/{id}")
@@ -44,15 +49,19 @@ public class InventarioBodegaController {
     }
 
     @GetMapping("/bodega/{bodegaId}")
-    @Operation(summary = "Obtener inventario de una bodega")
-    public ResponseEntity<List<InventarioBodega>> getByBodega(@PathVariable Long bodegaId) {
-        return ResponseEntity.ok(service.findByBodega(bodegaId));
+    @Operation(summary = "Obtener inventario de una bodega con paginación/orden")
+    public ResponseEntity<Page<InventarioBodega>> getByBodega(
+            @PathVariable Long bodegaId,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(service.findByBodega(bodegaId, pageable));
     }
 
     @GetMapping("/producto/{productoId}")
-    @Operation(summary = "Obtener inventario de un producto en todas las bodegas")
-    public ResponseEntity<List<InventarioBodega>> getByProducto(@PathVariable Long productoId) {
-        return ResponseEntity.ok(service.findByProducto(productoId));
+    @Operation(summary = "Obtener inventario de un producto en todas las bodegas con paginación/orden")
+    public ResponseEntity<Page<InventarioBodega>> getByProducto(
+            @PathVariable Long productoId,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(service.findByProducto(productoId, pageable));
     }
 
     @GetMapping("/bodega/{bodegaId}/producto/{productoId}")

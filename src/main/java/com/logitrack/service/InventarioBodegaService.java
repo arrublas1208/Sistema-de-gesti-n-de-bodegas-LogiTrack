@@ -5,12 +5,15 @@ import com.logitrack.exception.BusinessException;
 import com.logitrack.model.Bodega;
 import com.logitrack.model.InventarioBodega;
 import com.logitrack.model.Producto;
+import com.logitrack.model.Auditoria;
 import com.logitrack.repository.BodegaRepository;
 import com.logitrack.repository.InventarioBodegaRepository;
 import com.logitrack.repository.ProductoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import java.util.List;
 
 @Service
@@ -20,9 +23,13 @@ public class InventarioBodegaService {
     private final InventarioBodegaRepository repository;
     private final BodegaRepository bodegaRepository;
     private final ProductoRepository productoRepository;
+    private final AuditoriaService auditoriaService;
 
-    public List<InventarioBodega> findAll() {
-        return repository.findAll();
+    public Page<InventarioBodega> findAll(Pageable pageable, Integer stockMinimo) {
+        if (stockMinimo != null) {
+            return repository.findByStockMinimoFilter(stockMinimo, pageable);
+        }
+        return repository.findAllPageable(pageable);
     }
 
     public InventarioBodega findById(Long id) {
@@ -30,18 +37,18 @@ public class InventarioBodegaService {
                 .orElseThrow(() -> new ResourceNotFoundException("Inventario no encontrado: " + id));
     }
 
-    public List<InventarioBodega> findByBodega(Long bodegaId) {
+    public Page<InventarioBodega> findByBodega(Long bodegaId, Pageable pageable) {
         if (!bodegaRepository.existsById(bodegaId)) {
             throw new ResourceNotFoundException("Bodega no encontrada: " + bodegaId);
         }
-        return repository.findByBodegaId(bodegaId);
+        return repository.findByBodegaId(bodegaId, pageable);
     }
 
-    public List<InventarioBodega> findByProducto(Long productoId) {
+    public Page<InventarioBodega> findByProducto(Long productoId, Pageable pageable) {
         if (!productoRepository.existsById(productoId)) {
             throw new ResourceNotFoundException("Producto no encontrado: " + productoId);
         }
-        return repository.findByProductoId(productoId);
+        return repository.findByProductoId(productoId, pageable);
     }
 
     public InventarioBodega findByBodegaAndProducto(Long bodegaId, Long productoId) {
@@ -89,7 +96,9 @@ public class InventarioBodegaService {
 
         inventario.setBodega(bodega);
         inventario.setProducto(producto);
-        return repository.save(inventario);
+        InventarioBodega saved = repository.save(inventario);
+        auditoriaService.registrar("InventarioBodega", saved.getId(), Auditoria.Operacion.INSERT, null, saved);
+        return saved;
     }
 
     public InventarioBodega update(Long id, InventarioBodega inventario) {
@@ -100,10 +109,21 @@ public class InventarioBodegaService {
             throw new BusinessException("El stock mínimo no puede ser mayor al stock máximo");
         }
 
+        InventarioBodega prev = InventarioBodega.builder()
+                .id(existing.getId())
+                .bodega(existing.getBodega())
+                .producto(existing.getProducto())
+                .stock(existing.getStock())
+                .stockMinimo(existing.getStockMinimo())
+                .stockMaximo(existing.getStockMaximo())
+                .ultimaActualizacion(existing.getUltimaActualizacion())
+                .build();
         existing.setStock(inventario.getStock());
         existing.setStockMinimo(inventario.getStockMinimo());
         existing.setStockMaximo(inventario.getStockMaximo());
-        return repository.save(existing);
+        InventarioBodega saved = repository.save(existing);
+        auditoriaService.registrar("InventarioBodega", saved.getId(), Auditoria.Operacion.UPDATE, prev, saved);
+        return saved;
     }
 
     public InventarioBodega ajustarStock(Long bodegaId, Long productoId, Integer cantidad) {
@@ -119,14 +139,25 @@ public class InventarioBodegaService {
             throw new BusinessException("El stock excedería el máximo permitido: " + inventario.getStockMaximo());
         }
 
+        InventarioBodega prev = InventarioBodega.builder()
+                .id(inventario.getId())
+                .bodega(inventario.getBodega())
+                .producto(inventario.getProducto())
+                .stock(inventario.getStock())
+                .stockMinimo(inventario.getStockMinimo())
+                .stockMaximo(inventario.getStockMaximo())
+                .ultimaActualizacion(inventario.getUltimaActualizacion())
+                .build();
         inventario.setStock(nuevoStock);
-        return repository.save(inventario);
+        InventarioBodega saved = repository.save(inventario);
+        auditoriaService.registrar("InventarioBodega", saved.getId(), Auditoria.Operacion.UPDATE, prev, saved);
+        return saved;
     }
 
     public void delete(Long id) {
-        if (!repository.existsById(id)) {
-            throw new ResourceNotFoundException("Inventario no encontrado: " + id);
-        }
+        InventarioBodega prev = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Inventario no encontrado: " + id));
         repository.deleteById(id);
+        auditoriaService.registrar("InventarioBodega", prev.getId(), Auditoria.Operacion.DELETE, prev, null);
     }
 }

@@ -9,6 +9,7 @@ import lombok.*;
 @Entity
 @Table(name = "movimiento_detalle",
        uniqueConstraints = @UniqueConstraint(columnNames = {"movimiento_id", "producto_id"}))
+@EntityListeners(AuditoriaListener.class)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

@@ -9,6 +9,7 @@ import com.logitrack.config.AuditoriaListener;
 @Entity
 @Table(name = "inventario_bodega",
        uniqueConstraints = @UniqueConstraint(columnNames = {"bodega_id", "producto_id"}))
+@EntityListeners(AuditoriaListener.class)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -18,12 +19,12 @@ public class InventarioBodega {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "bodega_id", nullable = false)
     @NotNull
     private Bodega bodega;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "producto_id", nullable = false)
     @NotNull
     private Producto producto;

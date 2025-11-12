@@ -1,6 +1,22 @@
 # LogiTrack - Sistema de Gestión de Inventario
 ## Sistema Completo de Control de Bodegas
 
+## Descripción del proyecto
+- Sistema de gestión de bodegas e inventario con control de productos, movimientos (entrada/salida/transferencia), auditoría y reportes.
+- Backend en Spring Boot con seguridad JWT, documentación Swagger y MySQL.
+- Frontend React (Vite) que consume los endpoints bajo `/api` y se integra como estáticos del backend.
+
+## Instalación y ejecución
+- Backend:
+  - `./mvnw spring-boot:run` (Windows: `.\\mvnw.cmd spring-boot:run`)
+  - Puerto por defecto `8081` configurable vía `PORT` (ver `src/main/resources/application.properties:1-49`).
+- Frontend (desarrollo con proxy):
+  - `cd frontend && npm install`
+  - Windows PowerShell: `$env:VITE_API_PROXY_TARGET="http://localhost:8081"; npm run dev`
+  - El proxy está definido en `frontend/vite.config.js:7` apuntando a `VITE_API_PROXY_TARGET`.
+- Frontend (build de producción):
+  - `cd frontend && npm run build` (publica en `src/main/resources/static`)
+
 ---
 
 ## 🖥️ Estado del Frontend (Actualización)
@@ -27,7 +43,7 @@ El build publica:
 - `src/main/resources/static/assets/index-*.js`
 - `src/main/resources/static/assets/index-*.css`
 
-El frontend usa `API_BASE = window.location.origin + "/api"`; por lo tanto, el backend debe servir los endpoints bajo `/api` en el mismo origen.
+El frontend usa `API_BASE = window.location.origin + "/api"` (ver `frontend/src/main.jsx:7`); por lo tanto, el backend debe servir los endpoints bajo `/api` en el mismo origen.
 
 ### Endpoints consumidos por la UI (y campos esperados)
 
@@ -43,6 +59,29 @@ El frontend usa `API_BASE = window.location.origin + "/api"`; por lo tanto, el b
 - `GET /api/auditoria/ultimas` → `[ { id, fecha, entidad, operacion, usuario: { nombreCompleto } } ]`
 
 ---
+## Autenticación y JWT
+- Endpoints de autenticación (ver `src/main/java/com/logitrack/controller/AuthController.java:19`, `:34`, `:48`):
+  - Login:
+    - `POST /api/auth/login`
+    - Body: `{ "username": "admin", "password": "admin123" }`
+    - Respuesta: `{ "token": "<JWT>" }`
+  - Register:
+    - `POST /api/auth/register`
+    - Body: `{ "username": "nuevo", "password": "secreto", "rol": "EMPLEADO", "email": "nuevo@logitrack.com", "nombreCompleto": "Usuario Nuevo" }`
+- Uso del token:
+  - Enviar `Authorization: Bearer <JWT>` en peticiones a rutas protegidas (`SecurityConfig` en `src/main/java/com/logitrack/security/SecurityConfig.java:31`).
+  - Ejemplo:
+    - `curl -H "Authorization: Bearer <JWT>" http://localhost:8081/api/productos`
+- Generación y validación de tokens: `src/main/java/com/logitrack/security/JwtTokenProvider.java:28`.
+
+## Capturas de Swagger y pruebas
+- Swagger UI: `http://localhost:8081/swagger-ui.html` (ver configuración en `src/main/resources/application.properties:1-49`).
+- Sugerencia de pruebas rápidas:
+  - `curl -X GET http://localhost:8081/api/bodegas`
+  - `curl -X GET http://localhost:8081/api/productos`
+  - `curl -X POST http://localhost:8081/api/movimientos -H "Content-Type: application/json" -d '{"tipo":"ENTRADA","usuarioId":1,"bodegaDestinoId":1,"detalles":[{"productoId":1,"cantidad":5}]}'`
+- Incluya capturas de Swagger y de respuestas de estas pruebas en su entrega.
+
 
 ## 🎯 Estado del Proyecto
 

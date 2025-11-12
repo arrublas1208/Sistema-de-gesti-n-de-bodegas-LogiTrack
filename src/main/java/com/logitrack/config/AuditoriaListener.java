@@ -1,25 +1,23 @@
 package com.logitrack.config;
 
 import com.logitrack.model.Auditoria;
-import com.logitrack.model.Usuario;
-import jakarta.persistence.*;
+import com.logitrack.service.AuditoriaService;
+import jakarta.persistence.PreRemove;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.PostPersist;
 import org.springframework.stereotype.Component;
 
 @Component
 public class AuditoriaListener {
 
-    @PersistenceContext
-    private EntityManager em;
-
-    @PrePersist
-    public void prePersist(Object entity) {
+    @PostPersist
+    public void postPersist(Object entity) {
         registrar(entity, Auditoria.Operacion.INSERT, null, entity);
     }
 
     @PreUpdate
     public void preUpdate(Object entity) {
-        Object old = em.find(entity.getClass(), getId(entity));
-        registrar(entity, Auditoria.Operacion.UPDATE, old, entity);
+        registrar(entity, Auditoria.Operacion.UPDATE, null, entity);
     }
 
     @PreRemove
@@ -28,16 +26,8 @@ public class AuditoriaListener {
     }
 
     private void registrar(Object entity, Auditoria.Operacion operacion, Object anterior, Object nuevo) {
-        Auditoria auditoria = new Auditoria();
-        auditoria.setOperacion(operacion);
-        auditoria.setEntidad(entity.getClass().getSimpleName());
-        auditoria.setEntidadId(getId(entity));
-        auditoria.setValoresAnteriores(anterior);
-        auditoria.setValoresNuevos(nuevo);
-
-        // Seguridad desactivada temporalmente: no se asigna usuario autenticado
-
-        em.persist(auditoria);
+        AuditoriaService service = ApplicationContextProvider.getBean(AuditoriaService.class);
+        service.registrar(entity.getClass().getSimpleName(), getId(entity), operacion, anterior, nuevo);
     }
 
     private Long getId(Object entity) {

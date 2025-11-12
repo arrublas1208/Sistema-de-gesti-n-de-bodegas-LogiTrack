@@ -1,67 +1,97 @@
-# Lista de Pendientes (Backlog) – LogiTrack
+La empresa LogiTrack S.A. administra varias bodegas distribuidas en distintas ciudades, encargadas de almacenar productos y gestionar movimientos de inventario (entradas, salidas, y transferencias).
 
-Esta lista consolida los trabajos pendientes para dejar el proyecto al 100% en backend, frontend, seguridad y despliegue en Tomcat.
+Hasta ahora, el control de inventarios y auditorías se hacía manualmente en hojas de cálculo, sin trazabilidad ni control de accesos.
 
-## Backend
-- Uniformar contratos en `/api/movimientos`: usar `usuarioId` y estabilizar `usuario` (objeto/cadena).
-- Implementar paginación y ordenamiento en `movimientos`, `inventario`, `auditoria` y `productos`.
-- Añadir filtros server-side (fecha, tipo, bodega, usuario, categoría) en endpoints relevantes.
-- Estandarizar formato de errores: `{"message":"...","details":{"message":"..."}}`.
-- Validaciones de negocio adicionales: capacidad de bodega, stock mínimo, movimientos coherentes (origen/destino).
-- Normalizar DTOs y mapeo entity↔DTO; evitar exponer entidades directamente en controladores.
-- Optimizar consultas: evitar N+1, agregar índices en campos usados en filtros y ordenamiento.
-- Migraciones de base de datos con Flyway/Liquibase; documentar cambios de esquema.
-- Tests unitarios (servicios) e integración (controladores/repositorios) con datos semilla.
-- Mejorar Swagger/OpenAPI: ejemplos, respuestas de error, tags y agrupación por módulos.
-- Auditoría ampliada: incluir rol/usuario, paginación, y endpoint de consulta avanzada.
-- Configuración externalizada (`application.properties`/`application.yml`); perfiles `dev`/`prod`.
-- CORS para desarrollo controlado; permitir el origen de `vite dev` si se usa servidor separado.
+La dirección general busca implementar un sistema backend centralizado en Spring Boot, que permita:
 
-## Frontend
-- Estados de carga y error consistentes en todas las vistas.
-- Paginación, ordenamiento y filtros en UI para listas largas.
-- Formularios de movimientos con validación de campos y mensajes claros.
-- Gestión de estado: revisar `Context` y hooks para evitar renders innecesarios.
-- Uso consistente de `api()` con manejo de tiempo de espera y errores; mejorar mensajes.
-- Accesibilidad: semántica, foco, navegación por teclado y contrastes.
-- i18n básica (ES) y preparación para agregar otros idiomas.
-- Tests con Vitest/React Testing Library (render, llamadas a API simuladas).
-- Performance: memoización, virtualización de listas si aplica, evitar re-render costoso.
-- Reemplazar íconos CDN por assets locales; empaquetar con Vite.
-- Manejo de `null/undefined` en datos de API; proteger render y formato.
+Controlar todos los movimientos entre bodegas.
+Registrar automáticamente los cambios (auditorías).
+Proteger la información con autenticación JWT.
+Ofrecer endpoints REST documentados y seguros.
 
-## Seguridad
-- Autenticación (JWT o sesión): endpoints de login/logout y protección de `/api/**`.
-- Autorización por rol (ADMIN, OPERADOR): restricciones en creación/edición de movimientos e inventario.
-- Configurar Spring Security; deshabilitar endpoints no necesarios y proteger documentos Swagger en producción.
-- CSRF (según modalidad), CORS seguro (orígenes permitidos y métodos), cookies con `HttpOnly/SameSite`.
-- Validación de entrada con Bean Validation; sanitización y prevención de inyección.
-- Cabeceras de seguridad: HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Content-Security-Policy` ajustada.
-- Rate limiting para endpoints críticos (movimientos, login).
-- Logging y alertas de seguridad; trazabilidad completa en auditoría.
-- Gestión de secretos: externalizar credenciales (variables de entorno, `.env`), evitar en repositorio.
-- Tokens: expiración, refresco, revocación y lista de bloqueo; cambio de contraseña seguro.
-- Escaneo de dependencias y vulnerabilidades (OWASP Dependency-Check/Snyk) y actualización regular.
 
-## Despliegue en Tomcat
-- Cambiar `pom.xml` a `packaging=war`; `spring-boot-starter-tomcat` como `provided`.
-- Añadir `SpringBootServletInitializer` para inicializar la aplicación como WAR.
-- Definir `server.servlet.context-path` (por ejemplo, `/logitrack`).
-- Garantizar que el bundle Vite (`src/main/resources/static`) se incluya y sirva dentro del WAR.
-- Externalizar configuración (`DB`, `CORS`, `security`) mediante propiedades del servidor.
-- Script de build: `mvn clean package` para generar `logitrack.war`.
-- Instrucciones de despliegue: copiar WAR a `tomcat/webapps/`, validar rutas `/api` y assets.
-- Logs en Tomcat (`catalina.out`) y configuración de rotación.
-- Health checks con Actuator (`/actuator/health`) y verificación de readiness.
-- Pipeline CI/CD (build, tests, seguridad, empaquetado WAR, despliegue) y rollback.
+Objetivo General
+Desarrollar un sistema de gestión y auditoría de bodegas que permita registrar transacciones de inventario y generar reportes auditables de los cambios realizados por cada usuario.
 
-## Criterios de Terminado
-- Sin errores en consola (navegador y servidor) y UI estable.
-- Endpoints con paginación, filtros y contratos sólidos; Swagger actualizado.
-- Seguridad aplicada y validada (auth/roles, cabeceras, CORS, CSRF si corresponde).
-- Build reproducible: `npm run build` publica estáticos y `mvn package` genera WAR listo para Tomcat.
-- Documentación actualizada (`README.md`, `INVENTARIO_API.md`, `MOVIMIENTOS_API.md`, `POSTMAN_TESTS.md`).
 
-## Referencias
-- `README.md` → Estado del frontend y guía de build.
-- `INVENTARIO_API.md`, `MOVIMIENTOS_API.md`, `POSTMAN_TESTS.md` → contratos y pruebas.
+Requisitos Funcionales:
+
+
+1. Gestión de Bodegas
+Registrar, consultar, actualizar y eliminar bodegas.
+Campos: id, nombre, ubicacion, capacidad, encargado.
+2. Gestión de Productos
+CRUD completo de productos.
+Campos: id, nombre, categoria, stock, precio.
+
+
+3. Movimientos de Inventario
+Registrar entradas, salidas y transferencias entre bodegas.
+Cada movimiento debe almacenar:
+Fecha, tipo de movimiento (enum: ENTRADA, SALIDA, TRANSFERENCIA),
+Usuario responsable (empleado logueado),
+Bodega origen/destino,
+Productos y cantidades.
+
+
+4. Auditoría de Cambios
+Crear una entidad Auditoria para registrar:
+Tipo de operación (INSERT, UPDATE, DELETE),
+Fecha y hora,
+Usuario que realizó la acción,
+Entidad afectada y valores anteriores/nuevos.
+Implementar auditoría automática mediante:
+Listeners de JPA (EntityListeners) o
+Aspecto con anotaciones personalizadas (opcional).
+
+
+5. Autenticación y Seguridad
+Implementar seguridad con Spring Security + JWT:
+Endpoints /auth/login y /auth/register.
+Rutas seguras para /bodegas, /productos, /movimientos.
+Rol de usuario (ADMIN / EMPLEADO).
+
+
+6. Consultas Avanzadas y Reportes
+Endpoints con filtros:
+Productos con stock bajo (< 10 unidades).
+Movimientos por rango de fechas (BETWEEN).
+Auditorías por usuario o por tipo de operación.
+Reporte REST de resumen general (JSON): stock total por bodega y productos más movidos.
+
+
+7. Documentación
+Documentar toda la API con Swagger/OpenAPI 3.
+Probar los endpoints protegidos (token JWT incluido).
+
+
+8. Excepciones y Validaciones
+Manejo global de errores con @ControllerAdvice.
+Validaciones con anotaciones @NotNull, @Size, @Min, etc.
+Respuestas JSON personalizadas para errores (400, 401, 404, 500).
+
+
+9. Despliegue:
+Configurar base de datos MySQL en application.properties.
+Incluir scripts SQL (schema.sql, data.sql).
+Ejecutar con Tomcat embebido o externo.
+Frontend básico en HTML/CSS/JS para probar el login y las consultas principales.
+
+
+Estructura sugerida del Proyecto
+
+src/
+
+ ├─ controller/
+
+ ├─ service/
+
+ ├─ repository/
+
+ ├─ model/
+
+ ├─ config/
+
+ ├─ security/
+
+ └─ exception/

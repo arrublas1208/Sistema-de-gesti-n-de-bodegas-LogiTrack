@@ -1,32 +1,55 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import './style.css'
+import { Icon } from './icons.jsx'
+import { t } from './i18n.js'
 
 const API_BASE = window.location.origin + "/api";
 
 async function api(path, options = {}) {
-  const res = await fetch(API_BASE + path, Object.assign({
+  const controller = new AbortController();
+  const timeout = options.timeoutMs != null ? options.timeoutMs : 15000;
+  const id = setTimeout(() => controller.abort(), timeout);
+  const merged = Object.assign({
     headers: { "Content-Type": "application/json" }
-  }, options || {}));
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: res.statusText }));
-    const msg = (err && err.details && err.details.message) || (err && err.message) || ('Error ' + res.status);
-    throw new Error(msg);
+  }, options || {});
+  merged.signal = merged.signal || controller.signal;
+  try {
+    const res = await fetch(API_BASE + path, merged);
+    if (!res.ok) {
+      let errObj = null;
+      try { errObj = await res.json(); } catch (_) { errObj = { message: res.statusText }; }
+      const msg = (errObj && errObj.details && errObj.details.message) || (errObj && errObj.message) || ("Error " + res.status);
+      throw new Error(msg);
+    }
+    if (res.status === 204) return null;
+    return await res.json();
+  } finally {
+    clearTimeout(id);
   }
-  if (res.status === 204) return null;
-  return await res.json();
 }
 
 function useFetch(getter, deps = []) {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState(null);
+  const current = React.useRef(null);
   const run = React.useCallback(async () => {
-    setLoading(true); setError(null);
-    try { setData(await getter()); } catch (e) { setError(e); }
-    finally { setLoading(false); }
+    if (current.current) current.current.abort();
+    const ac = new AbortController();
+    current.current = ac;
+    setLoading(true);
+    setError(null);
+    try {
+      const next = await getter(ac.signal);
+      setData(next);
+    } catch (e) {
+      if (e.name !== 'AbortError') setError(e);
+    } finally {
+      setLoading(false);
+    }
   }, deps);
-  React.useEffect(() => { run(); }, [run]);
+  React.useEffect(() => { run(); return () => { if (current.current) current.current.abort(); }; }, [run]);
   return { data, loading, error, reload: run };
 }
 
@@ -38,13 +61,13 @@ function normalize(v) { return (v == null ? "" : v).toString().toLowerCase(); }
 
 function Sidebar({ route, setRoute }) {
   const items = [
-    { key: "dashboard", label: "Dashboard", icon: "fa-chart-line" },
-    { key: "bodegas", label: "Bodegas", icon: "fa-warehouse" },
-    { key: "productos", label: "Productos", icon: "fa-box" },
-    { key: "movimientos", label: "Movimientos", icon: "fa-arrows-left-right" },
-    { key: "inventario", label: "Inventario", icon: "fa-clipboard-list" },
-    { key: "reportes", label: "Reportes", icon: "fa-file-lines" },
-    { key: "auditoria", label: "Auditoría", icon: "fa-list-check" },
+    { key: "dashboard", label: t('dashboard'), icon: "chart-line" },
+    { key: "bodegas", label: t('bodegas'), icon: "warehouse" },
+    { key: "productos", label: t('productos'), icon: "box" },
+    { key: "movimientos", label: t('movimientos'), icon: "arrows-left-right" },
+    { key: "inventario", label: t('inventario'), icon: "clipboard-list" },
+    { key: "reportes", label: t('reportes'), icon: "file-lines" },
+    { key: "auditoria", label: t('auditoria'), icon: "list-check" },
   ];
   return (
     <aside className="sidebar">
@@ -52,7 +75,7 @@ function Sidebar({ route, setRoute }) {
       <div className="nav">
         {items.map(it => (
           <button key={it.key} className={route===it.key?"active":""} onClick={() => setRoute(it.key)}>
-            <i className={`fa-solid ${it.icon}`} /> {it.label}
+            <Icon name={it.icon} /> {it.label}
           </button>
         ))}
       </div>
@@ -64,43 +87,50 @@ function Header({ title, right }) {
   const { query, setQuery } = SearchContext.use();
   return (
     <div className="header">
-      <div className="search-box"><input placeholder="Buscar..." value={query} onChange={e=>setQuery(e.target.value)} /></div>
+      <div className="search-box"><input placeholder={t('buscar')} value={query} onChange={e=>setQuery(e.target.value)} /></div>
       <div className="toolbar"><span className="profile">Admin</span>{right}</div>
     </div>
   );
 }
 
+function Loading() { return <div className="panel"><div className="panel-body">{t('cargando')}</div></div>; }
+function ErrorState({ error, onRetry }) { return <div className="panel"><div className="panel-body">{String(error && error.message || t('error'))}<div className="form actions"><button className="btn" onClick={onRetry}><Icon name="rotate" />{t('reintentar')}</button></div></div></div>; }
+function EmptyState({ message }) { return <div className="panel"><div className="panel-body">{message || t('sin_datos')}</div></div>; }
+
 function Dashboard() {
-  const resumen = useFetch(() => api("/reportes/resumen"), []);
-  const ultimos = useFetch(() => api("/reportes/movimientos/ultimos"), []);
-  const bodegas = useFetch(() => api("/bodegas"), []);
-  const productos = useFetch(() => api("/productos"), []);
+  const resumen = useFetch((signal) => api("/reportes/resumen", { signal }), []);
+  const ultimos = useFetch((signal) => api("/reportes/movimientos/ultimos", { signal }), []);
+  const bodegas = useFetch((signal) => api("/bodegas", { signal }), []);
+  const productos = useFetch((signal) => api("/productos", { signal }), []);
   return (
     <div>
-      <Header title="Dashboard" right={<span className="status">Actualizado</span>} />
+      <Header title={t('dashboard')} right={<span className="status">{t('actualizado')}</span>} />
       <div className="cards">
-        <div className="card"><div className="label">Bodegas</div><div className="value">{Array.isArray(bodegas.data) ? bodegas.data.length : '—'}</div></div>
-        <div className="card"><div className="label">Productos</div><div className="value">{Array.isArray(productos.data) ? productos.data.length : '—'}</div></div>
-        <div className="card"><div className="label">Stock Bajo</div><div className="value">{Array.isArray(resumen.data && resumen.data.stockBajo) ? resumen.data.stockBajo.length : '—'}</div></div>
-        <div className="card"><div className="label">Movimientos (10 últimos)</div><div className="value">{Array.isArray(ultimos.data) ? ultimos.data.length : '—'}</div></div>
+        <div className="card"><div className="label">{t('bodegas')}</div><div className="value">{Array.isArray(bodegas.data) ? bodegas.data.length : '—'}</div></div>
+        <div className="card"><div className="label">{t('productos')}</div><div className="value">{Array.isArray(productos.data) ? productos.data.length : '—'}</div></div>
+        <div className="card"><div className="label">{t('stock_bajo')}</div><div className="value">{Array.isArray(resumen.data && resumen.data.stockBajo) ? resumen.data.stockBajo.length : '—'}</div></div>
+        <div className="card"><div className="label">{t('ultimos_mov')}</div><div className="value">{Array.isArray(ultimos.data) ? ultimos.data.length : '—'}</div></div>
       </div>
       <div className="panel mt-16">
-        <div className="panel-header"><strong>Últimos movimientos</strong>
-          <button className="btn secondary" onClick={ultimos.reload}><i className="fa-solid fa-rotate"/>Refrescar</button>
+        <div className="panel-header"><strong>{t('ultimos_mov')}</strong>
+          <button className="btn secondary" onClick={ultimos.reload}><Icon name="rotate" />{t('refrescar')}</button>
         </div>
         <div className="panel-body">
-          <MovimientosTable movimientos={ultimos.data || []} />
+          {ultimos.loading && <Loading/>}
+          {ultimos.error && <ErrorState error={ultimos.error} onRetry={ultimos.reload} />}
+          {!ultimos.loading && !ultimos.error && (Array.isArray(ultimos.data) && ultimos.data.length === 0) && <EmptyState/>}
+          {!ultimos.loading && !ultimos.error && Array.isArray(ultimos.data) && ultimos.data.length > 0 && <MovimientosTable movimientos={ultimos.data || []} />}
         </div>
       </div>
       <div className="grid-2 mt-16">
         <div className="panel">
-          <div className="panel-header"><strong>Productos más movidos</strong></div>
+          <div className="panel-header"><strong>{t('top_productos')}</strong></div>
           <div className="panel-body">
             <TopProductos />
           </div>
         </div>
         <div className="panel">
-          <div className="panel-header"><strong>Stock por bodega</strong></div>
+          <div className="panel-header"><strong>{t('stock_por_bodega')}</strong></div>
           <div className="panel-body">
             <StockPorBodega resumen={resumen.data} />
           </div>
@@ -110,19 +140,21 @@ function Dashboard() {
   );
 }
 
-function MovimientosTable({ movimientos }) {
+function MovimientosTable({ movimientos, onDelete }) {
   const { query } = SearchContext.use();
   const q = normalize(query);
-  const filtered = (movimientos||[]).filter(m => {
-    const base = [m.usuario, m.tipo, m.bodegaOrigen, m.bodegaDestino].map(normalize).join(" ");
-    const dets = (m.detalles||[]).map(d=>[d.producto, d.cantidad].map(normalize).join(" ")).join(" ");
-    return (base + " " + dets).includes(q);
-  });
+  const filtered = React.useMemo(() => {
+    return (movimientos||[]).filter(m => {
+      const base = [m.usuario, m.tipo, m.bodegaOrigen, m.bodegaDestino].map(normalize).join(" ");
+      const dets = (m.detalles||[]).map(d=>[d.producto, d.cantidad].map(normalize).join(" ")).join(" ");
+      return (base + " " + dets).includes(q);
+    });
+  }, [movimientos, q]);
   return (
     <table>
       <thead>
         <tr>
-          <th>Fecha</th><th>Tipo</th><th>Usuario</th><th>Producto</th><th>Cantidad</th><th>Origen</th><th>Destino</th>
+          <th>Fecha</th><th>Tipo</th><th>Usuario</th><th>Producto</th><th>Cantidad</th><th>Origen</th><th>Destino</th><th></th>
         </tr>
       </thead>
       <tbody>
@@ -136,6 +168,7 @@ function MovimientosTable({ movimientos }) {
               <td>{d.cantidad}</td>
               <td>{m.bodegaOrigen || '—'}</td>
               <td>{m.bodegaDestino || '—'}</td>
+              <td>{onDelete && i===0 ? (<button className="btn danger" onClick={()=>onDelete(m.id)}><Icon name="trash" />{t('eliminar')}</button>) : null}</td>
             </tr>
           )) : (
             <tr key={m.id}>
@@ -145,6 +178,7 @@ function MovimientosTable({ movimientos }) {
               <td>—</td><td>—</td>
               <td>{m.bodegaOrigen || '—'}</td>
               <td>{m.bodegaDestino || '—'}</td>
+              <td>{onDelete ? (<button className="btn danger" onClick={()=>onDelete(m.id)}><Icon name="trash" />{t('eliminar')}</button>) : null}</td>
             </tr>
           )
         ))}
@@ -154,12 +188,14 @@ function MovimientosTable({ movimientos }) {
 }
 
 function TopProductos() {
-  const { data } = useFetch(() => api("/reportes/movimientos/top-productos"), []);
+  const { data, loading, error, reload } = useFetch((signal) => api("/reportes/movimientos/top-productos", { signal }), []);
   return (
     <table>
       <thead><tr><th>Producto</th><th>Total movido</th></tr></thead>
       <tbody>
-        {(data||[]).map((r,i)=> (
+        {loading && <tr><td colSpan="2">{t('cargando')}</td></tr>}
+        {error && <tr><td colSpan="2">{String(error.message)} <button className="btn" onClick={reload}><Icon name="rotate" />{t('reintentar')}</button></td></tr>}
+        {!loading && !error && (data||[]).map((r,i)=> (
           <tr key={i}><td>{r.producto}</td><td>{r.totalMovido}</td></tr>
         ))}
       </tbody>
@@ -182,7 +218,7 @@ function StockPorBodega({ resumen }) {
 }
 
 function BodegasView() {
-  const list = useFetch(() => api("/bodegas"), []);
+  const list = useFetch((signal) => api("/bodegas", { signal }), []);
   const [nombre, setNombre] = React.useState("");
   const [direccion, setDireccion] = React.useState("");
   const [capacidad, setCapacidad] = React.useState("");
@@ -203,24 +239,30 @@ function BodegasView() {
 
   return (
     <div>
-      <Header title="Bodegas" right={<><span className="status muted">{status}</span><button className="btn" onClick={list.reload}><i className="fa-solid fa-rotate"/>Refrescar</button></>} />
+      <Header title={t('bodegas')} right={<><span className="status muted">{status}</span><button className="btn" onClick={list.reload}><Icon name="rotate" />{t('refrescar')}</button></>} />
       <div className="grid-2">
         <div className="panel">
-          <div className="panel-header"><strong>Crear bodega</strong></div>
+          <div className="panel-header"><strong>{t('crear_bodega')}</strong></div>
           <div className="panel-body">
             <div className="form">
-              <div className="field"><label>Nombre</label><input value={nombre} onChange={e=>setNombre(e.target.value)} /></div>
-              <div className="field"><label>Dirección</label><input value={direccion} onChange={e=>setDireccion(e.target.value)} /></div>
-              <div className="field"><label>Capacidad</label><input type="number" value={capacidad} onChange={e=>setCapacidad(e.target.value)} /></div>
-              <div className="actions"><button className="btn" onClick={crear}><i className="fa-solid fa-plus"/>Crear</button></div>
+              <div className="field"><label>{t('nombre')}</label><input value={nombre} onChange={e=>setNombre(e.target.value)} /></div>
+              <div className="field"><label>{t('direccion')}</label><input value={direccion} onChange={e=>setDireccion(e.target.value)} /></div>
+              <div className="field"><label>{t('capacidad')}</label><input type="number" value={capacidad} onChange={e=>setCapacidad(e.target.value)} /></div>
+              <div className="actions"><button className="btn" onClick={crear}><Icon name="plus" />{t('crear')}</button></div>
             </div>
           </div>
         </div>
         <div className="panel">
-          <div className="panel-header"><strong>Listado</strong></div>
+          <div className="panel-header"><strong>{t('listado')}</strong></div>
           <div className="panel-body">
+            {list.loading && <Loading/>}
+            {list.error && <ErrorState error={list.error} onRetry={list.reload} />}
+            {!list.loading && !list.error && (()=>{
+              const arr = Array.isArray(list.data) ? list.data : (list.data && Array.isArray(list.data.content) ? list.data.content : []);
+              return arr.length===0;
+            })() && <EmptyState/>}
             <table>
-              <thead><tr><th>ID</th><th>Nombre</th><th>Dirección</th><th>Capacidad</th><th></th></tr></thead>
+              <thead><tr><th>ID</th><th>{t('nombre')}</th><th>{t('direccion')}</th><th>{t('capacidad')}</th><th></th></tr></thead>
               <tbody>
                 {(list.data||[]).map(b => (
                   <tr key={b.id}>
@@ -229,11 +271,11 @@ function BodegasView() {
                     <td>{editId===b.id ? (<input value={editDireccion} onChange={e=>setEditDireccion(e.target.value)} />) : (b.direccion||'')}</td>
                     <td>{editId===b.id ? (<input type="number" value={editCapacidad} onChange={e=>setEditCapacidad(e.target.value)} />) : b.capacidad}</td>
                     <td>{editId===b.id ? (<>
-                      <button className="btn" onClick={guardarEdit}><i className="fa-solid fa-check"/>Guardar</button>
-                      <button className="btn secondary" onClick={cancelEdit}><i className="fa-solid fa-xmark"/>Cancelar</button>
+                      <button className="btn" onClick={guardarEdit}><Icon name="check" />{t('guardar')}</button>
+                      <button className="btn secondary" onClick={cancelEdit}><Icon name="xmark" />{t('cancelar')}</button>
                     </>) : (<>
-                      <button className="btn" onClick={()=>startEdit(b)}><i className="fa-solid fa-pen"/>Editar</button>
-                      <button className="btn danger" onClick={()=>eliminar(b.id)}><i className="fa-solid fa-trash"/>Eliminar</button>
+                      <button className="btn" onClick={()=>startEdit(b)}><Icon name="pen" />{t('editar')}</button>
+                      <button className="btn danger" onClick={()=>eliminar(b.id)}><Icon name="trash" />{t('eliminar')}</button>
                     </>)}
                     </td>
                   </tr>
@@ -248,7 +290,20 @@ function BodegasView() {
 }
 
 function ProductosView() {
-  const list = useFetch(() => api("/productos"), []);
+  const [categoriaFiltro, setCategoriaFiltro] = React.useState("");
+  const [nombreLikeFiltro, setNombreLikeFiltro] = React.useState("");
+  const [page, setPage] = React.useState(0);
+  const [size, setSize] = React.useState(20);
+  const [sort, setSort] = React.useState("nombre,asc");
+  const list = useFetch((signal) => {
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    params.set('size', String(size));
+    params.set('sort', sort);
+    if (categoriaFiltro) params.set('categoria', categoriaFiltro);
+    if (nombreLikeFiltro) params.set('nombreLike', nombreLikeFiltro);
+    return api(`/productos?${params.toString()}`, { signal });
+  }, [categoriaFiltro, nombreLikeFiltro, page, size, sort]);
   const [nombre, setNombre] = React.useState("");
   const [categoria, setCategoria] = React.useState("");
   const [precio, setPrecio] = React.useState("");
@@ -271,27 +326,32 @@ function ProductosView() {
 
   return (
     <div>
-      <Header title="Productos" right={<><span className="status muted">{status}</span><button className="btn" onClick={list.reload}><i className="fa-solid fa-rotate"/>Refrescar</button></>} />
+      <Header title={t('productos')} right={<><span className="status muted">{status}</span><button className="btn" onClick={list.reload}><Icon name="rotate" />{t('refrescar')}</button></>} />
       <div className="grid-2">
         <div className="panel">
-          <div className="panel-header"><strong>Crear producto</strong></div>
+          <div className="panel-header"><strong>{t('crear_producto')}</strong></div>
           <div className="panel-body">
             <div className="form">
-              <div className="field"><label>Nombre</label><input value={nombre} onChange={e=>setNombre(e.target.value)} /></div>
-              <div className="field"><label>Categoría</label><input value={categoria} onChange={e=>setCategoria(e.target.value)} /></div>
-              <div className="field"><label>Precio</label><input type="number" value={precio} onChange={e=>setPrecio(e.target.value)} /></div>
-              <div className="field"><label>Stock</label><input type="number" value={stock} onChange={e=>setStock(e.target.value)} /></div>
-              <div className="actions"><button className="btn" onClick={crear}><i className="fa-solid fa-plus"/>Crear</button></div>
+              <div className="field"><label>{t('nombre')}</label><input value={nombre} onChange={e=>setNombre(e.target.value)} /></div>
+              <div className="field"><label>{t('categoria')}</label><input value={categoria} onChange={e=>setCategoria(e.target.value)} /></div>
+              <div className="field"><label>{t('precio')}</label><input type="number" value={precio} onChange={e=>setPrecio(e.target.value)} /></div>
+              <div className="field"><label>{t('stock')}</label><input type="number" value={stock} onChange={e=>setStock(e.target.value)} /></div>
+              <div className="actions"><button className="btn" onClick={crear}><Icon name="plus" />{t('crear')}</button></div>
             </div>
           </div>
         </div>
         <div className="panel">
-          <div className="panel-header"><strong>Listado</strong></div>
+          <div className="panel-header"><strong>{t('listado')}</strong><div className="toolbar"><input placeholder={t('filtro_nombre')} value={nombreLikeFiltro} onChange={e=>setNombreLikeFiltro(e.target.value)} /><input placeholder={t('filtro_categoria')} value={categoriaFiltro} onChange={e=>setCategoriaFiltro(e.target.value)} /><select value={sort} onChange={e=>setSort(e.target.value)}><option value="nombre,asc">{t('orden_nombre_asc')}</option><option value="nombre,desc">{t('orden_nombre_desc')}</option><option value="precio,asc">{t('orden_precio_asc')}</option><option value="precio,desc">{t('orden_precio_desc')}</option></select></div></div>
           <div className="panel-body">
+            {list.loading && <Loading/>}
+            {list.error && <ErrorState error={list.error} onRetry={list.reload} />}
+            {!list.loading && !list.error && (!Array.isArray(list.data) || list.data.length===0) && <EmptyState/>}
             <table>
-              <thead><tr><th>ID</th><th>Nombre</th><th>Categoría</th><th>Precio</th><th>Stock</th><th></th></tr></thead>
+              <thead><tr><th>ID</th><th>{t('nombre')}</th><th>{t('categoria')}</th><th>{t('precio')}</th><th>{t('stock')}</th><th></th></tr></thead>
               <tbody>
-                {(list.data||[]).map(p => (
+                {(() => {
+                  const base = Array.isArray(list.data) ? list.data : (list.data && Array.isArray(list.data.content) ? list.data.content : []);
+                  return base.map(p => (
                   <tr key={p.id}>
                     <td>{p.id}</td>
                     <td>{editId===p.id ? (<input value={editNombre} onChange={e=>setEditNombre(e.target.value)} />) : p.nombre}</td>
@@ -299,17 +359,29 @@ function ProductosView() {
                     <td>{editId===p.id ? (<input type="number" value={editPrecio} onChange={e=>setEditPrecio(e.target.value)} />) : `$${String(p.precio||0)}`}</td>
                     <td>{editId===p.id ? (<input type="number" value={editStock} onChange={e=>setEditStock(e.target.value)} />) : p.stock}</td>
                     <td>{editId===p.id ? (<>
-                      <button className="btn" onClick={guardarEdit}><i className="fa-solid fa-check"/>Guardar</button>
-                      <button className="btn secondary" onClick={cancelEdit}><i className="fa-solid fa-xmark"/>Cancelar</button>
+                      <button className="btn" onClick={guardarEdit}><Icon name="check" />{t('guardar')}</button>
+                      <button className="btn secondary" onClick={cancelEdit}><Icon name="xmark" />{t('cancelar')}</button>
                     </>) : (<>
-                      <button className="btn" onClick={()=>startEdit(p)}><i className="fa-solid fa-pen"/>Editar</button>
-                      <button className="btn danger" onClick={()=>eliminar(p.id)}><i className="fa-solid fa-trash"/>Eliminar</button>
+                      <button className="btn" onClick={()=>startEdit(p)}><Icon name="pen" />{t('editar')}</button>
+                      <button className="btn danger" onClick={()=>eliminar(p.id)}><Icon name="trash" />{t('eliminar')}</button>
                     </>)}
                     </td>
                   </tr>
-                ))}
+                  ));
+                })()}
               </tbody>
             </table>
+            <div className="toolbar" style={{justifyContent:'flex-end', marginTop:8}}>
+              <button className="btn secondary" onClick={()=>setPage(Math.max(0, page-1))}>{t('prev')}</button>
+              <span className="status">{t('pagina')} {page+1}</span>
+              {(!Array.isArray(list.data) && list.data && typeof list.data.totalElements === 'number') && <span className="status">{String(list.data.totalElements)}</span>}
+              <button className="btn secondary" onClick={()=>setPage(page+1)}>{t('next')}</button>
+              <select value={size} onChange={e=>setSize(Number(e.target.value))}>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -318,49 +390,250 @@ function ProductosView() {
 }
 
 function InventarioView() {
-  const bodegas = useFetch(() => api("/bodegas"), []);
+  const bodegas = useFetch((signal) => api("/bodegas", { signal }), []);
+  const productos = useFetch((signal) => api("/productos", { signal }), []);
   const [bodegaId, setBodegaId] = React.useState("");
-  const { data, reload } = useFetch(() => bodegaId ? api(`/inventario/bodega/${bodegaId}`) : api("/inventario"), [bodegaId]);
+  const [productoId, setProductoId] = React.useState("");
+  const [stockMinimo, setStockMinimo] = React.useState("");
+  const [page, setPage] = React.useState(0);
+  const [size, setSize] = React.useState(20);
+  const [sort, setSort] = React.useState("stock,desc");
+  const { data, loading, error, reload } = useFetch((signal) => {
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    params.set('size', String(size));
+    params.set('sort', sort);
+    if (productoId) params.set('productoId', String(productoId));
+    if (stockMinimo) params.set('stockMinimo', String(stockMinimo));
+    if (bodegaId && productoId) return api(`/inventario/bodega/${bodegaId}/producto/${productoId}?${params.toString()}`, { signal });
+    if (productoId && !bodegaId) return api(`/inventario/producto/${productoId}?${params.toString()}`, { signal });
+    if (bodegaId) return api(`/inventario/bodega/${bodegaId}?${params.toString()}`, { signal });
+    return api(`/inventario?${params.toString()}`, { signal });
+  }, [bodegaId, productoId, stockMinimo, page, size, sort]);
+  const totalStock = useFetch((signal) => {
+    if (productoId) return api(`/inventario/producto/${productoId}/total-stock`, { signal });
+    return Promise.resolve(null);
+  }, [productoId]);
+  const displayData = React.useMemo(() => {
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.content)) return data.content;
+    if (data && typeof data === 'object' && data.id != null) return [data];
+    return [];
+  }, [data]);
   return (
     <div>
-      <Header title="Inventario" right={<>
+      <Header title={t('inventario')} right={<>
         <select value={bodegaId} onChange={e=>setBodegaId(e.target.value)}>
-          <option value="">Todas las bodegas</option>
+          <option value="">{t('todas_bodegas')}</option>
           {(bodegas.data||[]).map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
         </select>
-        <button className="btn secondary" onClick={reload}><i className="fa-solid fa-rotate"/>Refrescar</button>
+        <select value={productoId} onChange={e=>setProductoId(e.target.value)}>
+          <option value="">{t('todos_productos')}</option>
+          {(productos.data||[]).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+        </select>
+        {productoId && totalStock.data && (typeof totalStock.data.totalStock !== 'undefined') && <span className="status">{t('stock_total')}: {totalStock.data.totalStock}</span>}
+        <input type="number" placeholder={t('stock_minimo')} value={stockMinimo} onChange={e=>setStockMinimo(e.target.value)} />
+        <select value={sort} onChange={e=>setSort(e.target.value)}>
+          <option value="stock,desc">{t('orden_stock_desc')}</option>
+          <option value="stock,asc">{t('orden_stock_asc')}</option>
+        </select>
+        <button className="btn secondary" onClick={reload}><Icon name="rotate" />{t('refrescar')}</button>
       </>} />
       <div className="panel">
-        <div className="panel-header"><strong>Listado de inventario</strong></div>
+        <div className="panel-header"><strong>{t('listado_inventario')}</strong></div>
         <div className="panel-body">
+          {loading && <Loading/>}
+          {error && <ErrorState error={error} onRetry={reload} />}
           <table>
             <thead><tr><th>Bodega</th><th>Producto</th><th>Stock</th><th>Mínimo</th></tr></thead>
             <tbody>
-              {(data||[]).map(i => (
+              {(displayData||[]).map(i => (
                 <tr key={i.id}><td>{(i.bodega && i.bodega.nombre) ? i.bodega.nombre : i.bodega}</td><td>{(i.producto && i.producto.nombre) ? i.producto.nombre : i.producto}</td><td>{i.stock}</td><td>{i.stockMinimo}</td></tr>
               ))}
             </tbody>
           </table>
+          <div className="toolbar" style={{justifyContent:'flex-end', marginTop:8}}>
+            <button className="btn secondary" onClick={()=>setPage(Math.max(0, page-1))}>{t('prev')}</button>
+            <span className="status">{t('pagina')} {page+1}</span>
+            {(!Array.isArray(data) && data && typeof data.totalElements === 'number') && <span className="status">{String(data.totalElements)}</span>}
+            <button className="btn secondary" onClick={()=>setPage(page+1)}>{t('next')}</button>
+            <select value={size} onChange={e=>setSize(Number(e.target.value))}>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div className="panel mt-8">
+        <div className="panel-header"><strong>{t('ajustar_inventario')}</strong></div>
+        <div className="panel-body">
+          <AjusteInventario bodegas={bodegas.data||[]} productos={productos.data||[]} onDone={reload} />
+        </div>
+      </div>
+      <div className="grid-2 mt-8">
+        <div className="panel">
+          <div className="panel-header"><strong>{t(bodegaId? 'stock_bajo_bodega' : 'stock_bajo_global')}</strong></div>
+          <div className="panel-body">
+            <StockBajoPanel bodegaId={bodegaId} />
+          </div>
+        </div>
+        <div className="panel">
+          <div className="panel-header"><strong>{t('administrar_inventario')}</strong></div>
+          <div className="panel-body">
+            <InventarioCRUD bodegas={bodegas.data||[]} productos={productos.data||[]} onDone={reload} />
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
+function AjusteInventario({ bodegas, productos, onDone }) {
+  const [bodegaId, setBodegaId] = React.useState("");
+  const [productoId, setProductoId] = React.useState("");
+  const [cantidad, setCantidad] = React.useState("");
+  const [motivo, setMotivo] = React.useState("");
+  const [status, setStatus] = React.useState("");
+  const [error, setError] = React.useState("");
+  const ajustar = async () => {
+    setError("");
+    if (!bodegaId || !productoId) { setError(t('error_seleccione_bodega_producto')); return; }
+    if (cantidad === "" || Number(cantidad) === 0) { setError(t('error_cantidad')); return; }
+    try {
+      const qs = new URLSearchParams();
+      qs.set('cantidad', String(Number(cantidad)));
+      await api(`/inventario/bodega/${bodegaId}/producto/${productoId}/ajustar?` + qs.toString(), { method: 'PATCH' });
+      setStatus(t('ajuste_ok'));
+      setBodegaId(""); setProductoId(""); setCantidad(""); setMotivo("");
+      if (typeof onDone === 'function') onDone();
+    } catch (e) { setError(String(e.message)); }
+  };
+  return (
+    <div className="form">
+      <div className="field"><label>{t('bodega')}</label>
+        <select value={bodegaId} onChange={e=>setBodegaId(e.target.value)}>
+          <option value="">{t('seleccione')}</option>
+          {(bodegas||[]).map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+        </select>
+      </div>
+      <div className="field"><label>{t('producto')}</label>
+        <select value={productoId} onChange={e=>setProductoId(e.target.value)}>
+          <option value="">{t('seleccione')}</option>
+          {(productos||[]).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+        </select>
+      </div>
+      <div className="field"><label>{t('cantidad')}</label>
+        <input type="number" value={cantidad} onChange={e=>setCantidad(e.target.value)} />
+      </div>
+      <div className="field" style={{gridColumn:'1/-1'}}><label>{t('motivo')}</label>
+        <input value={motivo} onChange={e=>setMotivo(e.target.value)} />
+      </div>
+      <div className="actions">
+        <button className="btn" onClick={ajustar}><Icon name="check" />{t('ajustar')}</button>
+        <span className="status muted">{status}</span>
+        {error && <span className="status" style={{color:'var(--danger)'}}>{error}</span>}
+      </div>
+    </div>
+  );
+}
+
+function StockBajoPanel({ bodegaId }) {
+  const list = useFetch((signal) => {
+    if (bodegaId) return api(`/inventario/bodega/${bodegaId}/stock-bajo`, { signal });
+    return api('/inventario/stock-bajo', { signal });
+  }, [bodegaId]);
+  return (
+    <table>
+      <thead><tr><th>Bodega</th><th>Producto</th><th>Stock</th><th>Mínimo</th></tr></thead>
+      <tbody>
+        {list.loading && <tr><td colSpan="4">{t('cargando')}</td></tr>}
+        {list.error && <tr><td colSpan="4">{String(list.error.message)}</td></tr>}
+        {!list.loading && !list.error && (list.data||[]).map(i => (
+          <tr key={i.id}><td>{(i.bodega && i.bodega.nombre) ? i.bodega.nombre : i.bodega}</td><td>{(i.producto && i.producto.nombre) ? i.producto.nombre : i.producto}</td><td>{i.stock}</td><td>{i.stockMinimo}</td></tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function InventarioCRUD({ bodegas, productos, onDone }) {
+  const list = useFetch((signal) => api('/inventario', { signal }), []);
+  const [bodegaId, setBodegaId] = React.useState("");
+  const [productoId, setProductoId] = React.useState("");
+  const [stock, setStock] = React.useState("");
+  const [stockMinimo, setStockMinimo] = React.useState("");
+  const [stockMaximo, setStockMaximo] = React.useState("");
+  const crear = async () => {
+    if (!bodegaId || !productoId) return;
+    const body = { bodega: { id: Number(bodegaId) }, producto: { id: Number(productoId) }, stock: Number(stock)||0, stockMinimo: Number(stockMinimo)||0, stockMaximo: Number(stockMaximo)||0 };
+    await api('/inventario', { method: 'POST', body: JSON.stringify(body) });
+    setBodegaId(""); setProductoId(""); setStock(""); setStockMinimo(""); setStockMaximo("");
+    list.reload(); if (typeof onDone==='function') onDone();
+  };
+  const guardar = async (row) => {
+    const body = { stock: Number(row.stock)||0, stockMinimo: Number(row.stockMinimo)||0, stockMaximo: Number(row.stockMaximo)||0 };
+    await api(`/inventario/${row.id}`, { method: 'PUT', body: JSON.stringify(body) });
+    list.reload(); if (typeof onDone==='function') onDone();
+  };
+  const eliminar = async (id) => { await api(`/inventario/${id}`, { method: 'DELETE' }); list.reload(); if (typeof onDone==='function') onDone(); };
+  return (
+    <div>
+      <div className="form">
+        <div className="field"><label>{t('bodega')}</label>
+          <select value={bodegaId} onChange={e=>setBodegaId(e.target.value)}>
+            <option value="">{t('seleccione')}</option>
+            {(bodegas||[]).map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+          </select>
+        </div>
+        <div className="field"><label>{t('producto')}</label>
+          <select value={productoId} onChange={e=>setProductoId(e.target.value)}>
+            <option value="">{t('seleccione')}</option>
+            {(productos||[]).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+          </select>
+        </div>
+        <div className="field"><label>{t('stock')}</label><input type="number" value={stock} onChange={e=>setStock(e.target.value)} /></div>
+        <div className="field"><label>{t('stock_minimo_label')}</label><input type="number" value={stockMinimo} onChange={e=>setStockMinimo(e.target.value)} /></div>
+        <div className="field"><label>{t('stock_maximo_label')}</label><input type="number" value={stockMaximo} onChange={e=>setStockMaximo(e.target.value)} /></div>
+        <div className="actions"><button className="btn" onClick={crear}><Icon name="plus" />{t('crear_inventario')}</button></div>
+      </div>
+      <table className="mt-8">
+        <thead><tr><th>ID</th><th>{t('bodega')}</th><th>{t('producto')}</th><th>{t('stock')}</th><th>{t('stock_minimo_label')}</th><th>{t('stock_maximo_label')}</th><th></th></tr></thead>
+        <tbody>
+          {(list.data||[]).map(i => (
+            <tr key={i.id}>
+              <td>{i.id}</td>
+              <td>{(i.bodega && i.bodega.nombre) ? i.bodega.nombre : i.bodega}</td>
+              <td>{(i.producto && i.producto.nombre) ? i.producto.nombre : i.producto}</td>
+              <td><input type="number" value={i.stock} onChange={e=>{ i.stock = Number(e.target.value)||0; }} /></td>
+              <td><input type="number" value={i.stockMinimo} onChange={e=>{ i.stockMinimo = Number(e.target.value)||0; }} /></td>
+              <td><input type="number" value={i.stockMaximo} onChange={e=>{ i.stockMaximo = Number(e.target.value)||0; }} /></td>
+              <td>
+                <button className="btn" onClick={()=>guardar(i)}><Icon name="check" />{t('guardar')}</button>
+                <button className="btn danger" onClick={()=>eliminar(i.id)}><Icon name="trash" />{t('eliminar')}</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function ReportesView() {
   const [threshold, setThreshold] = React.useState("");
-  const resumen = useFetch(() => threshold ? api(`/reportes/resumen?threshold=${threshold}`) : api("/reportes/resumen"), [threshold]);
+  const resumen = useFetch((signal) => threshold ? api(`/reportes/resumen?threshold=${threshold}`, { signal }) : api("/reportes/resumen", { signal }), [threshold]);
   const stockBajo = ((resumen.data && resumen.data.stockBajo) ? resumen.data.stockBajo : []).filter(p => p.stock <= (resumen.data && resumen.data.threshold != null ? resumen.data.threshold : -Infinity));
   const resumenPorCategoria = ((resumen.data && resumen.data.resumenPorCategoria) ? resumen.data.resumenPorCategoria : []).filter(c => c.stockTotal <= (resumen.data && resumen.data.threshold != null ? resumen.data.threshold : -Infinity));
   return (
     <div>
-      <Header title="Reportes" right={<>
-        <input type="number" placeholder="Umbral (threshold)" value={threshold} onChange={e=>setThreshold(e.target.value)} />
-        <button className="btn secondary" onClick={resumen.reload}><i className="fa-solid fa-rotate"/>Aplicar</button>
+      <Header title={t('reportes')} right={<>
+        <input type="number" placeholder={t('umbral')} value={threshold} onChange={e=>setThreshold(e.target.value)} />
+        <button className="btn secondary" onClick={resumen.reload}><Icon name="rotate" />{t('aplicar')}</button>
       </>} />
       <div className="grid-2">
         <div className="panel">
-          <div className="panel-header"><strong>Stock bajo (threshold { (resumen.data && resumen.data.threshold != null ? resumen.data.threshold : '—') })</strong></div>
+          <div className="panel-header"><strong>{t('stock_bajo_label')} { (resumen.data && resumen.data.threshold != null ? resumen.data.threshold : '—') }</strong></div>
           <div className="panel-body">
             <table>
               <thead><tr><th>Producto</th><th>Categoría</th><th>Precio</th><th>Stock</th></tr></thead>
@@ -373,7 +646,7 @@ function ReportesView() {
           </div>
         </div>
         <div className="panel">
-          <div className="panel-header"><strong>Resumen por categoría</strong></div>
+          <div className="panel-header"><strong>{t('resumen_por_categoria')}</strong></div>
           <div className="panel-body">
             <table>
               <thead><tr><th>Categoría</th><th>Stock total</th><th>Valor total</th></tr></thead>
@@ -391,34 +664,79 @@ function ReportesView() {
 }
 
 function MovimientosView() {
-  const movimientos = useFetch(() => api("/movimientos"), []);
-  const bodegas = useFetch(() => api("/bodegas"), []);
-  const productos = useFetch(() => api("/productos"), []);
+  const [tipoFiltro, setTipoFiltro] = React.useState("");
+  const [fechaDesde, setFechaDesde] = React.useState("");
+  const [fechaHasta, setFechaHasta] = React.useState("");
+  const [bodegaOrigenFiltro, setBodegaOrigenFiltro] = React.useState("");
+  const [bodegaDestinoFiltro, setBodegaDestinoFiltro] = React.useState("");
+  const [usuarioIdFiltro, setUsuarioIdFiltro] = React.useState("");
+  const movimientos = useFetch((signal) => {
+    const origenODestino = bodegaOrigenFiltro || bodegaDestinoFiltro;
+    if (tipoFiltro) return api(`/movimientos/tipo/${tipoFiltro}`, { signal });
+    if (usuarioIdFiltro) return api(`/movimientos/usuario/${usuarioIdFiltro}`, { signal });
+    if (origenODestino) return api(`/movimientos/bodega/${origenODestino}`, { signal });
+    if (fechaDesde && fechaHasta) {
+      const inicio = `${fechaDesde}T00:00:00`;
+      const fin = `${fechaHasta}T23:59:59`;
+      return api(`/movimientos/rango-fechas?inicio=${encodeURIComponent(inicio)}&fin=${encodeURIComponent(fin)}`, { signal });
+    }
+    const params = new URLSearchParams();
+    if (tipoFiltro) params.set('tipo', tipoFiltro);
+    if (usuarioIdFiltro) params.set('usuarioId', String(usuarioIdFiltro));
+    if (origenODestino) params.set('bodegaId', String(origenODestino));
+    if (fechaDesde) params.set('inicio', `${fechaDesde}T00:00:00`);
+    if (fechaHasta) params.set('fin', `${fechaHasta}T23:59:59`);
+    const qs = params.toString();
+    if (qs) return api(`/movimientos/search?${qs}`, { signal });
+    return api(`/movimientos`, { signal });
+  }, [tipoFiltro, fechaDesde, fechaHasta, bodegaOrigenFiltro, bodegaDestinoFiltro, usuarioIdFiltro]);
+  const bodegas = useFetch((signal) => api("/bodegas", { signal }), []);
+  const productos = useFetch((signal) => api("/productos", { signal }), []);
+  const [movId, setMovId] = React.useState("");
+  const movById = useFetch((signal) => {
+    if (!movId) return Promise.resolve(null);
+    return api(`/movimientos/${movId}`, { signal });
+  }, [movId]);
   const [tipo, setTipo] = React.useState("ENTRADA");
   const [usuarioId, setUsuarioId] = React.useState(1);
   const [bodegaOrigenId, setBodegaOrigenId] = React.useState("");
   const [bodegaDestinoId, setBodegaDestinoId] = React.useState("");
   const [detalles, setDetalles] = React.useState([]);
   const [observaciones, setObservaciones] = React.useState("");
+  const [submitting, setSubmitting] = React.useState(false);
+  const [formError, setFormError] = React.useState("");
 
   const addDetalle = () => setDetalles(detalles.concat([{ productoId: (productos.data && productos.data[0]) ? productos.data[0].id : 1, cantidad: 1 }]));
   const updateDetalle = (idx, patch) => setDetalles(detalles.map(function(d,i){ return i===idx ? Object.assign({}, d, patch) : d; }));
   const removeDetalle = (idx) => setDetalles(detalles.filter((_,i)=> i!==idx));
 
   const crear = async () => {
+    setFormError("");
+    if (!tipo) { setFormError(t('error_tipo')); return; }
+    if ((tipo === 'SALIDA' || tipo === 'TRANSFERENCIA') && !bodegaOrigenId) { setFormError(t('error_origen')); return; }
+    if ((tipo === 'ENTRADA' || tipo === 'TRANSFERENCIA') && !bodegaDestinoId) { setFormError(t('error_destino')); return; }
+    if (!detalles.length) { setFormError(t('error_detalles')); return; }
+    if (detalles.some(d => !d.productoId || !d.cantidad || d.cantidad <= 0)) { setFormError(t('error_cantidad')); return; }
     const body = { tipo, usuarioId, detalles, observaciones };
     if (tipo === 'SALIDA') body.bodegaOrigenId = Number(bodegaOrigenId);
     if (tipo === 'ENTRADA') body.bodegaDestinoId = Number(bodegaDestinoId);
     if (tipo === 'TRANSFERENCIA') { body.bodegaOrigenId = Number(bodegaOrigenId); body.bodegaDestinoId = Number(bodegaDestinoId); }
-    await api("/movimientos", { method: "POST", body: JSON.stringify(body) });
-    setDetalles([]); setObservaciones(""); movimientos.reload();
+    try {
+      setSubmitting(true);
+      await api("/movimientos", { method: "POST", body: JSON.stringify(body) });
+      setDetalles([]); setObservaciones(""); movimientos.reload();
+    } catch (e) {
+      setFormError(String(e.message));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <div>
-      <Header title="Movimientos" right={<button className="btn" onClick={movimientos.reload}><i className="fa-solid fa-rotate"/>Refrescar</button>} />
+      <Header title={t('movimientos')} right={<button className="btn" onClick={movimientos.reload}><Icon name="rotate" />{t('refrescar')}</button>} />
       <div className="panel">
-        <div className="panel-header"><strong>Registrar movimiento</strong></div>
+        <div className="panel-header"><strong>{t('registrar_movimiento')}</strong></div>
         <div className="panel-body">
           <div className="form">
             <div className="field"><label>Tipo</label>
@@ -443,14 +761,15 @@ function MovimientosView() {
               <textarea value={observaciones} onChange={e=>setObservaciones(e.target.value)} />
             </div>
             <div className="actions">
-              <button className="btn secondary" onClick={addDetalle}><i className="fa-solid fa-plus"/> Añadir producto</button>
-              <button className="btn" onClick={crear}><i className="fa-solid fa-check"/> Registrar</button>
+              <button className="btn secondary" onClick={addDetalle}><Icon name="plus" /> {t('anadir_producto')}</button>
+              <button className="btn" disabled={submitting} onClick={crear}><Icon name="check" /> {t('registrar')}</button>
             </div>
+            {formError && <div className="status" style={{color:'var(--danger)'}}>{formError}</div>}
           </div>
         </div>
       </div>
       <div className="panel mt-8">
-        <div className="panel-header"><strong>Detalles</strong></div>
+        <div className="panel-header"><strong>{t('detalles')}</strong></div>
         <div className="panel-body">
           {(detalles||[]).map((d,idx)=> (
             <div className="form" key={idx}>
@@ -462,15 +781,44 @@ function MovimientosView() {
               <div className="field"><label>Cantidad</label>
                 <input type="number" value={d.cantidad} onChange={e=>updateDetalle(idx,{cantidad:Number(e.target.value)})} />
               </div>
-              <div className="actions"><button className="btn danger" onClick={()=>removeDetalle(idx)}><i className="fa-solid fa-xmark"/>Quitar</button></div>
+              <div className="actions"><button className="btn danger" onClick={()=>removeDetalle(idx)}><Icon name="xmark" />{t('quitar')}</button></div>
             </div>
           ))}
         </div>
       </div>
       <div className="panel">
-        <div className="panel-header"><strong>Listado de movimientos</strong></div>
+        <div className="panel-header"><strong>{t('listado_movimientos')}</strong><div className="toolbar">
+          <select value={tipoFiltro} onChange={e=>setTipoFiltro(e.target.value)}>
+            <option value="">{t('todos')}</option>
+            <option value="ENTRADA">ENTRADA</option>
+            <option value="SALIDA">SALIDA</option>
+            <option value="TRANSFERENCIA">TRANSFERENCIA</option>
+          </select>
+          <input type="date" value={fechaDesde} onChange={e=>setFechaDesde(e.target.value)} />
+          <input type="date" value={fechaHasta} onChange={e=>setFechaHasta(e.target.value)} />
+          <select value={bodegaOrigenFiltro} onChange={e=>setBodegaOrigenFiltro(e.target.value)}>
+            <option value="">{t('origen')}</option>
+            {(bodegas.data||[]).map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+          </select>
+          <select value={bodegaDestinoFiltro} onChange={e=>setBodegaDestinoFiltro(e.target.value)}>
+            <option value="">{t('destino')}</option>
+            {(bodegas.data||[]).map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+          </select>
+          <input type="number" placeholder={t('usuario_id')} value={usuarioIdFiltro} onChange={e=>setUsuarioIdFiltro(e.target.value)} />
+          <span className="status">{t('orden_fecha_desc')}</span>
+          <input type="number" placeholder={t('movimiento_id')} value={movId} onChange={e=>setMovId(e.target.value)} />
+          <button className="btn secondary" onClick={movimientos.reload}><Icon name="rotate" />{t('refrescar')}</button>
+        </div></div>
         <div className="panel-body">
-          <MovimientosTable movimientos={movimientos.data||[]} />
+          {movimientos.loading && <Loading/>}
+          {movimientos.error && <ErrorState error={movimientos.error} onRetry={movimientos.reload} />}
+          {!movimientos.loading && !movimientos.error && (Array.isArray(movimientos.data) && movimientos.data.length === 0) && <EmptyState/>}
+          {!movimientos.loading && !movimientos.error && <MovimientosTable movimientos={movimientos.data||[]} onDelete={async (id)=>{ await api(`/movimientos/${id}`, { method: 'DELETE' }); movimientos.reload(); }} />}
+          {movId && movById.data && (
+            <div className="panel mt-8"><div className="panel-header"><strong>{t('buscar_por_id')}</strong></div><div className="panel-body">
+              <MovimientosTable movimientos={[movById.data]} onDelete={async (id)=>{ await api(`/movimientos/${id}`, { method: 'DELETE' }); movimientos.reload(); }} />
+            </div></div>
+          )}
         </div>
       </div>
     </div>
@@ -478,17 +826,19 @@ function MovimientosView() {
 }
 
 function AuditoriaView() {
-  const { data, reload } = useFetch(() => api("/auditoria/ultimas"), []);
+  const { data, loading, error, reload } = useFetch((signal) => api("/auditoria/ultimas", { signal }), []);
   return (
     <div>
-      <Header title="Auditoría" right={<button className="btn" onClick={reload}><i className="fa-solid fa-rotate"/>Refrescar</button>} />
+      <Header title={t('auditoria')} right={<button className="btn" onClick={reload}><Icon name="rotate" />{t('refrescar')}</button>} />
       <div className="panel">
-        <div className="panel-header"><strong>Últimas operaciones</strong></div>
+        <div className="panel-header"><strong>{t('ultimas_operaciones')}</strong></div>
         <div className="panel-body">
           <table>
             <thead><tr><th>Fecha</th><th>Entidad</th><th>Operación</th><th>Usuario</th></tr></thead>
             <tbody>
-              {(data||[]).map(a => (
+              {loading && <tr><td colSpan="4">{t('cargando')}</td></tr>}
+              {error && <tr><td colSpan="4">{String(error.message)} <button className="btn" onClick={reload}><Icon name="rotate" />{t('reintentar')}</button></td></tr>}
+              {!loading && !error && (data||[]).map(a => (
                 <tr key={a.id}><td>{new Date(a.fecha).toLocaleString()}</td><td>{a.entidad}</td><td>{a.operacion}</td><td>{(a.usuario && a.usuario.nombreCompleto) ? a.usuario.nombreCompleto : '—'}</td></tr>
               ))}
             </tbody>

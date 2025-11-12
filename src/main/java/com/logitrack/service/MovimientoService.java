@@ -152,7 +152,11 @@ public class MovimientoService {
                 .build();
 
         // Validar y crear detalles
+        java.util.Set<Long> productosVistos = new java.util.HashSet<>();
         for (MovimientoRequest.DetalleRequest detalleReq : request.getDetalles()) {
+            if (!productosVistos.add(detalleReq.getProductoId())) {
+                throw new BusinessException("Producto duplicado en detalles: " + detalleReq.getProductoId());
+            }
             Producto producto = productoRepository.findById(detalleReq.getProductoId())
                     .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado: " + detalleReq.getProductoId()));
 
@@ -171,13 +175,24 @@ public class MovimientoService {
         }
 
         // Guardar movimiento (cascade guardará los detalles)
-        Movimiento saved = movimientoRepository.save(movimiento);
+        try {
+            Movimiento saved = movimientoRepository.save(movimiento);
 
-        // Actualizar inventario
-        actualizarInventario(saved);
+            // Actualizar inventario
+            actualizarInventario(saved);
+            // Forzar flush dentro del try/catch para capturar errores en commit
+            movimientoRepository.flush();
 
-        log.info("Movimiento creado exitosamente: ID={}", saved.getId());
-        return toResponse(saved);
+            log.info("Movimiento creado exitosamente: ID={}", saved.getId());
+            return toResponse(saved);
+        } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+            throw new BusinessException("Violación de integridad de datos al registrar movimiento: " + ex.getMostSpecificCause().getMessage());
+        } catch (RuntimeException ex) {
+            throw new BusinessException("Error al registrar movimiento: " + String.valueOf(ex.getMessage()));
+        } catch (Exception ex) {
+            throw new BusinessException("Error inesperado al registrar movimiento");
+        }
+        
     }
 
     // Compatibilidad con especificación del documento (alias de create)
@@ -232,6 +247,12 @@ public class MovimientoService {
     }
 
     private void ajustarInventario(Bodega bodega, Producto producto, Integer ajuste) {
+        if (bodega == null) {
+            throw new BusinessException("Bodega requerida para ajustar inventario");
+        }
+        if (producto == null) {
+            throw new BusinessException("Producto requerido para ajustar inventario");
+        }
         InventarioBodega inventario = inventarioBodegaRepository
                 .findByBodegaIdAndProductoId(bodega.getId(), producto.getId())
                 .orElseGet(() -> {
@@ -291,6 +312,12 @@ public class MovimientoService {
     // Método de apoyo público para reusar el mapeo desde otros controladores
     public MovimientoResponse toResponsePublic(Movimiento movimiento) {
         return toResponse(movimiento);
+    }
+
+    public List<MovimientoResponse> findUltimos() {
+        return movimientoRepository.findTop10ByOrderByFechaDesc().stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
     }
 
     public void delete(Long id) {

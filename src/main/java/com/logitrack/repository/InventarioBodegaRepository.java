@@ -1,6 +1,8 @@
 package com.logitrack.repository;
 
 import com.logitrack.model.InventarioBodega;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,9 +18,11 @@ public interface InventarioBodegaRepository extends JpaRepository<InventarioBode
 
     // Listar todo el inventario de una bodega
     List<InventarioBodega> findByBodegaId(Long bodegaId);
+    Page<InventarioBodega> findByBodegaId(Long bodegaId, Pageable pageable);
 
     // Listar todas las bodegas que tienen un producto
     List<InventarioBodega> findByProductoId(Long productoId);
+    Page<InventarioBodega> findByProductoId(Long productoId, Pageable pageable);
 
     // Productos con stock bajo en una bodega
     @Query("SELECT i FROM InventarioBodega i WHERE i.bodega.id = :bodegaId AND i.stock <= i.stockMinimo")
@@ -27,6 +31,12 @@ public interface InventarioBodegaRepository extends JpaRepository<InventarioBode
     // Todos los productos con stock bajo en todas las bodegas
     @Query("SELECT i FROM InventarioBodega i WHERE i.stock <= i.stockMinimo ORDER BY i.stock ASC")
     List<InventarioBodega> findAllStockBajo();
+
+    @Query("SELECT i FROM InventarioBodega i")
+    Page<InventarioBodega> findAllPageable(Pageable pageable);
+
+    @Query("SELECT i FROM InventarioBodega i WHERE (:stockMinimo IS NULL OR i.stock <= :stockMinimo)")
+    Page<InventarioBodega> findByStockMinimoFilter(@Param("stockMinimo") Integer stockMinimo, Pageable pageable);
 
     // Verificar si existe inventario para bodega y producto
     boolean existsByBodegaIdAndProductoId(Long bodegaId, Long productoId);
