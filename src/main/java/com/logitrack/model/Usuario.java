@@ -3,11 +3,9 @@ package com.logitrack.model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
-import com.logitrack.config.AuditoriaListener;
 
 @Entity
 @Table(name = "usuario")
-@EntityListeners(AuditoriaListener.class)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

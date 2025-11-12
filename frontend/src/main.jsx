@@ -4,7 +4,16 @@ import './style.css'
 import { Icon } from './icons.jsx'
 import { t } from './i18n.js'
 
-const API_BASE = window.location.origin + "/api";
+const API_BASE = window.location.origin + "/logitrack/api";
+
+// Auth utilities
+const AUTH_USER_KEY = "logitrack_user";
+const AUTH_TOKEN_KEY = "logitrack_jwt";
+const getToken = () => localStorage.getItem(AUTH_TOKEN_KEY);
+const setToken = (token) => localStorage.setItem(AUTH_TOKEN_KEY, token);
+const removeToken = () => { localStorage.removeItem(AUTH_TOKEN_KEY); localStorage.removeItem(AUTH_USER_KEY); };
+const getUserData = () => { const userData = localStorage.getItem(AUTH_USER_KEY); return userData ? JSON.parse(userData) : null; };
+const setUserData = (userData) => localStorage.setItem(AUTH_USER_KEY, JSON.stringify(userData));
 
 async function api(path, options = {}) {
   const controller = new AbortController();
@@ -13,10 +22,22 @@ async function api(path, options = {}) {
   const merged = Object.assign({
     headers: { "Content-Type": "application/json" }
   }, options || {});
+
+  // Add Authorization header if token exists
+  const token = getToken();
+  if (token) {
+    merged.headers["Authorization"] = `Bearer ${token}`;
+  }
+
   merged.signal = merged.signal || controller.signal;
   try {
     const res = await fetch(API_BASE + path, merged);
     if (!res.ok) {
+      // Handle 401 Unauthorized
+      if (res.status === 401) {
+        removeToken();
+        window.location.reload();
+      }
       let errObj = null;
       try { errObj = await res.json(); } catch (_) { errObj = { message: res.statusText }; }
       const msg = (errObj && errObj.details && errObj.details.message) || (errObj && errObj.message) || ("Error " + res.status);
@@ -57,9 +78,16 @@ const SearchContext = {
   Context: React.createContext({ query: "", setQuery: () => {} }),
   use() { return React.useContext(this.Context); }
 };
+
+const AuthContext = {
+  Context: React.createContext({ user: null, setUser: () => {}, logout: () => {} }),
+  use() { return React.useContext(this.Context); }
+};
+
 function normalize(v) { return (v == null ? "" : v).toString().toLowerCase(); }
 
 function Sidebar({ route, setRoute }) {
+  const { logout } = AuthContext.use();
   const items = [
     { key: "dashboard", label: t('dashboard'), icon: "chart-line" },
     { key: "bodegas", label: t('bodegas'), icon: "warehouse" },
@@ -78,6 +106,9 @@ function Sidebar({ route, setRoute }) {
             <Icon name={it.icon} /> {it.label}
           </button>
         ))}
+        <button onClick={logout} style={{marginTop: 'auto', borderTop: '1px solid rgba(56, 248, 182, 0.25)'}}>
+          <Icon name="arrow-right-from-bracket" /> Cerrar sesión
+        </button>
       </div>
     </aside>
   );
@@ -85,17 +116,18 @@ function Sidebar({ route, setRoute }) {
 
 function Header({ title, right }) {
   const { query, setQuery } = SearchContext.use();
+  const { user } = AuthContext.use();
   return (
     <div className="header">
       <div className="search-box"><input placeholder={t('buscar')} value={query} onChange={e=>setQuery(e.target.value)} /></div>
-      <div className="toolbar"><span className="profile">Admin</span>{right}</div>
+      <div className="toolbar"><span className="profile" style={{display: 'flex', alignItems: 'center', gap: '8px'}}><span>👤</span><span>{user?.username || \'Usuario\'}</span></span>{right}</div>
     </div>
   );
 }
 
-function Loading() { return <div className="panel"><div className="panel-body">{t('cargando')}</div></div>; }
+function Loading() { return <div className="panel"><div className="panel-body" style={{display: 'flex', alignItems: \'center\', justifyContent: 'center', gap: '12px', padding: '32px'}}><div className="spinner"></div><span>{t(\'cargando\')}</span></div></div>; }
 function ErrorState({ error, onRetry }) { return <div className="panel"><div className="panel-body">{String(error && error.message || t('error'))}<div className="form actions"><button className="btn" onClick={onRetry}><Icon name="rotate" />{t('reintentar')}</button></div></div></div>; }
-function EmptyState({ message }) { return <div className="panel"><div className="panel-body">{message || t('sin_datos')}</div></div>; }
+function EmptyState({ message }) { return <div className="panel"><div className="panel-body empty-state"><div style={{fontSize: \'48px\', opacity: 0.3, marginBottom: \'16px\'}}>📦</div><div>{message || t(\'sin_datos\')}</div></div></div>; }
 
 function Dashboard() {
   const resumen = useFetch((signal) => api("/reportes/resumen", { signal }), []);
@@ -106,14 +138,14 @@ function Dashboard() {
     <div>
       <Header title={t('dashboard')} right={<span className="status">{t('actualizado')}</span>} />
       <div className="cards">
-        <div className="card"><div className="label">{t('bodegas')}</div><div className="value">{Array.isArray(bodegas.data) ? bodegas.data.length : '—'}</div></div>
-        <div className="card"><div className="label">{t('productos')}</div><div className="value">{Array.isArray(productos.data) ? productos.data.length : '—'}</div></div>
+        <div className="card"><div className="label">{t('bodegas')}</div><div className="value">{bodegas.loading ? <div className="spinner-small"></div> : (Array.isArray(bodegas.data) ? bodegas.data.length : \'—\')}</div></div>
+        <div className="card"><div className="label">{t('productos')}</div><div className="value">{productos.loading ? <div className="spinner-small"></div> : (Array.isArray(productos.data) ? productos.data.length : \'—\')}</div></div>
         <div className="card"><div className="label">{t('stock_bajo')}</div><div className="value">{Array.isArray(resumen.data && resumen.data.stockBajo) ? resumen.data.stockBajo.length : '—'}</div></div>
         <div className="card"><div className="label">{t('ultimos_mov')}</div><div className="value">{Array.isArray(ultimos.data) ? ultimos.data.length : '—'}</div></div>
       </div>
       <div className="panel mt-16">
         <div className="panel-header"><strong>{t('ultimos_mov')}</strong>
-          <button className="btn secondary" onClick={ultimos.reload}><Icon name="rotate" />{t('refrescar')}</button>
+          <button className="btn secondary" onClick={ultimos.reload} disabled={ultimos.loading}><Icon name="rotate" />{t(\'refrescar\')}</button>
         </div>
         <div className="panel-body">
           {ultimos.loading && <Loading/>}
@@ -162,7 +194,7 @@ function MovimientosTable({ movimientos, onDelete }) {
           (m.detalles && m.detalles.length) ? m.detalles.map((d,i)=>(
             <tr key={m.id+"-"+i}>
               <td>{new Date(m.fecha).toLocaleString()}</td>
-              <td><span className={`badge ${m.tipo==='ENTRADA'?'success':(m.tipo==='SALIDA'?'warn':'')}`}>{m.tipo}</span></td>
+              <td><span className={`badge ${m.tipo===\'ENTRADA\'?\'success\':(m.tipo===\'SALIDA\'?\'danger\':\'info\')}`}>{m.tipo}</span></td>
               <td>{m.usuario}</td>
               <td>{d.producto}</td>
               <td>{d.cantidad}</td>
@@ -232,7 +264,7 @@ function BodegasView() {
     await api("/bodegas", { method: "POST", body: JSON.stringify({ nombre, direccion, capacidad: Number(capacidad) || 0 }) });
     setNombre(""); setDireccion(""); setCapacidad(""); list.reload(); setStatus("Creada");
   };
-  const eliminar = async (id) => { await api(`/bodegas/${id}`, { method: "DELETE" }); list.reload(); };
+  const eliminar = async (id) => { if(!window.confirm("¿Eliminar esta bodega?")) return; await api(`/bodegas/${id}`, { method: "DELETE" }); list.reload(); };
   const startEdit = (b) => { setEditId(b.id); setEditNombre(b.nombre||""); setEditDireccion(b.direccion||""); setEditCapacidad(String(b.capacidad||0)); };
   const cancelEdit = () => { setEditId(null); setEditNombre(""); setEditDireccion(""); setEditCapacidad(""); };
   const guardarEdit = async () => { await api(`/bodegas/${editId}`, { method: "PUT", body: JSON.stringify({ nombre: editNombre, direccion: editDireccion, capacidad: Number(editCapacidad)||0 }) }); list.reload(); cancelEdit(); };
@@ -319,7 +351,7 @@ function ProductosView() {
     await api("/productos", { method: "POST", body: JSON.stringify({ nombre, categoria, precio: Number(precio)||0, stock: Number(stock)||0 }) });
     setNombre(""); setCategoria(""); setPrecio(""); setStock(""); list.reload(); setStatus("Creado");
   };
-  const eliminar = async (id) => { await api(`/productos/${id}`, { method: "DELETE" }); list.reload(); };
+  const eliminar = async (id) => { if(!window.confirm("¿Eliminar este producto?")) return; await api(`/productos/${id}`, { method: "DELETE" }); list.reload(); };
   const startEdit = (p) => { setEditId(p.id); setEditNombre(p.nombre||""); setEditCategoria(p.categoria||""); setEditPrecio(String(p.precio||0)); setEditStock(String(p.stock||0)); };
   const cancelEdit = () => { setEditId(null); setEditNombre(""); setEditCategoria(""); setEditPrecio(""); setEditStock(""); };
   const guardarEdit = async () => { await api(`/productos/${editId}`, { method: "PUT", body: JSON.stringify({ nombre: editNombre, categoria: editCategoria, precio: Number(editPrecio)||0, stock: Number(editStock)||0 }) }); list.reload(); cancelEdit(); };
@@ -698,7 +730,11 @@ function MovimientosView() {
     return api(`/movimientos/${movId}`, { signal });
   }, [movId]);
   const [tipo, setTipo] = React.useState("ENTRADA");
-  const [usuarioId, setUsuarioId] = React.useState(1);
+  const { user } = AuthContext.use();
+
+  // Use user ID from auth context, default to 1 if not available
+
+  const usuarioId = 1; // TODO: Extract from JWT or backend
   const [bodegaOrigenId, setBodegaOrigenId] = React.useState("");
   const [bodegaDestinoId, setBodegaDestinoId] = React.useState("");
   const [detalles, setDetalles] = React.useState([]);
@@ -813,10 +849,10 @@ function MovimientosView() {
           {movimientos.loading && <Loading/>}
           {movimientos.error && <ErrorState error={movimientos.error} onRetry={movimientos.reload} />}
           {!movimientos.loading && !movimientos.error && (Array.isArray(movimientos.data) && movimientos.data.length === 0) && <EmptyState/>}
-          {!movimientos.loading && !movimientos.error && <MovimientosTable movimientos={movimientos.data||[]} onDelete={async (id)=>{ await api(`/movimientos/${id}`, { method: 'DELETE' }); movimientos.reload(); }} />}
+          {!movimientos.loading && !movimientos.error && <MovimientosTable movimientos={movimientos.data||[]} onDelete={async (id)=>{ if(!window.confirm("¿Eliminar este movimiento?")) return; await api(`/movimientos/${id}`, { method: \'DELETE\' }); movimientos.reload(); }} />}
           {movId && movById.data && (
             <div className="panel mt-8"><div className="panel-header"><strong>{t('buscar_por_id')}</strong></div><div className="panel-body">
-              <MovimientosTable movimientos={[movById.data]} onDelete={async (id)=>{ await api(`/movimientos/${id}`, { method: 'DELETE' }); movimientos.reload(); }} />
+              <MovimientosTable movimientos={[movById.data]} onDelete={async (id)=>{ if(!window.confirm("¿Eliminar este movimiento?")) return; await api(`/movimientos/${id}`, { method: \'DELETE\' }); movimientos.reload(); }} />
             </div></div>
           )}
         </div>
@@ -849,6 +885,192 @@ function AuditoriaView() {
   );
 }
 
+// Login Component
+function Login({ onSuccess, onRegisterClick }) {
+  const [username, setUsername] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [error, setError] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const response = await api("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ username, password })
+      });
+
+      if (response && response.accessToken) {
+        setToken(response.accessToken); setUserData({username: response.username, rol: response.rol});
+        onSuccess(response);
+      } else {
+        setError("Error al iniciar sesión");
+      }
+    } catch (err) {
+      setError(err.message || "Error al iniciar sesión");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="auth-container">
+      <div className="auth-box">
+        <div className="auth-logo">LT</div>
+        <h1 className="auth-title">Bienvenido a LogiTrack</h1>
+        <p className="auth-subtitle">Sistema de Gestión de Bodegas</p>
+
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <div className="auth-field">
+            <label>Usuario</label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Ingrese su usuario"
+              required
+              autoFocus
+            />
+          </div>
+
+          <div className="auth-field">
+            <label>Contraseña</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Ingrese su contraseña"
+              required
+            />
+          </div>
+
+          {error && <div className="auth-error">{error}</div>}
+
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
+          </button>
+        </form>
+
+        <div className="auth-footer">
+          <p>¿No tienes cuenta?</p>
+          <button className="auth-link" onClick={onRegisterClick}>
+            Crear cuenta
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Register Component
+function Register({ onSuccess, onLoginClick }) {
+  const [username, setUsername] = React.useState("");
+  const [nombreCompleto, setNombreCompleto] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [rol, setRol] = React.useState("EMPLEADO");
+  const [error, setError] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const response = await api("/auth/register", {
+        method: "POST",
+        body: JSON.stringify({ username, nombreCompleto, email, password, rol })
+      });
+
+      if (response) {
+        onLoginClick();
+      }
+    } catch (err) {
+      setError(err.message || "Error al registrarse");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="auth-container">
+      <div className="auth-box">
+        <div className="auth-logo">LT</div>
+        <h1 className="auth-title">Crear Cuenta</h1>
+        <p className="auth-subtitle">Registrarse en LogiTrack</p>
+
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <div className="auth-field">
+            <label>Usuario</label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Elija un nombre de usuario"
+              required
+              autoFocus
+            />
+          </div>
+
+          <div className="auth-field">
+            <label>Nombre Completo</label>
+            <input
+              type="text"
+              value={nombreCompleto}
+              onChange={(e) => setNombreCompleto(e.target.value)}
+              placeholder="Ingrese su nombre completo"
+              required
+            />
+          </div>
+
+          <div className="auth-field">
+            <label>Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="correo@ejemplo.com"
+              required
+            />
+          </div>
+
+          <div className="auth-field">
+            <label>Contraseña</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Elija una contraseña"
+              required
+            />
+          </div>
+
+          <div className="auth-field">
+          </div>
+
+          {error && <div className="auth-error">{error}</div>}
+
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? "Creando cuenta..." : "Registrarse"}
+          </button>
+        </form>
+
+        <div className="auth-footer">
+          <p>¿Ya tienes cuenta?</p>
+          <button className="auth-link" onClick={onLoginClick}>
+            Iniciar sesión
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Main App with authentication
 function App() {
   const [route, setRoute] = React.useState("dashboard");
   const [query, setQuery] = React.useState("");
@@ -870,4 +1092,55 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+// Root component with authentication check
+function Root() {
+  const [user, setUser] = React.useState(null);
+  const [authView, setAuthView] = React.useState("login"); // "login" or "register"
+  const [isChecking, setIsChecking] = React.useState(true);
+
+  React.useEffect(() => {
+    // Check if user is already logged in
+    const token = getToken();
+    if (token) {
+      // Optionally verify token with backend
+      const userData = getUserData(); setUser(userData || { token });
+    }
+    setIsChecking(false);
+  }, []);
+
+  const handleLoginSuccess = (userData) => {
+    setUser(userData);
+  };
+
+  const handleLogout = () => {
+    removeToken();
+    setUser(null);
+    setAuthView("login");
+  };
+
+  if (isChecking) {
+    return (
+      <div className="auth-container">
+        <div className="auth-box">
+          <div className="auth-logo">LT</div>
+          <p>Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    if (authView === "register") {
+      return <Register onSuccess={handleLoginSuccess} onLoginClick={() => setAuthView("login")} />;
+    }
+    return <Login onSuccess={handleLoginSuccess} onRegisterClick={() => setAuthView("register")} />;
+  }
+
+  return (
+    <AuthContext.Context.Provider value={{ user, setUser, logout: handleLogout }}>
+      <App />
+    </AuthContext.Context.Provider>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Root/>);
