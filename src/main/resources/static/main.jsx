@@ -19,12 +19,19 @@ function useFetch(getter, deps = []) {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState(null);
-  const run = React.useCallback(async () => {
+  const run = React.useCallback(() => {
+    const controller = new AbortController();
     setLoading(true); setError(null);
-    try { setData(await getter()); } catch (e) { setError(e); }
-    finally { setLoading(false); }
+    Promise.resolve(getter(controller.signal))
+      .then(res => { if (!controller.signal.aborted) setData(res); })
+      .catch(e => { if (e && e.name === 'AbortError') return; setError(e); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return controller;
   }, deps);
-  React.useEffect(() => { run(); }, [run]);
+  React.useEffect(() => {
+    const controller = run();
+    return () => { controller.abort(); };
+  }, [run]);
   return { data, loading, error, reload: run };
 }
 
@@ -338,9 +345,9 @@ function ProductosView() {
 }
 
 function InventarioView() {
-  const bodegas = useFetch(() => api("/bodegas"), []);
+  const bodegas = useFetch((signal) => api("/bodegas", { signal }), []);
   const [bodegaId, setBodegaId] = React.useState("");
-  const { data, reload } = useFetch(() => bodegaId ? api(`/inventario/bodega/${bodegaId}`) : api("/inventario"), [bodegaId]);
+  const { data, reload } = useFetch((signal) => bodegaId ? api(`/inventario/bodega/${bodegaId}`, { signal }) : api("/inventario", { signal }), [bodegaId]);
   const { query } = SearchContext.use();
   const q = normalize(query);
   return (
@@ -360,7 +367,7 @@ function InventarioView() {
           <table>
             <thead><tr><th>Bodega</th><th>Producto</th><th>Stock</th><th>Mínimo</th></tr></thead>
             <tbody>
-              {(data||[]).filter(i => (normalize((i.producto && i.producto.nombre) ? i.producto.nombre : i.producto)+" "+normalize((i.bodega && i.bodega.nombre) ? i.bodega.nombre : i.bodega)).includes(q)).map(i => (
+              {(data||[]).filter(i => { const pn = normalize(((i&&i.producto&&i.producto.nombre) ? i.producto.nombre : (i&&i.producto) || "")); const bn = normalize(((i&&i.bodega&&i.bodega.nombre) ? i.bodega.nombre : (i&&i.bodega) || "")); return (pn+" "+bn).includes(q); }).map(i => (
                 <tr key={i.id}><td>{(i.bodega && i.bodega.nombre) ? i.bodega.nombre : i.bodega}</td><td>{(i.producto && i.producto.nombre) ? i.producto.nombre : i.producto}</td><td>{i.stock}</td><td>{i.stockMinimo}</td></tr>
               ))}
             </tbody>

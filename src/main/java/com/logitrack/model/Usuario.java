@@ -39,6 +39,10 @@ public class Usuario {
     @Column(unique = true, nullable = false)
     private String email;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "empresa_id", nullable = false)
+    private Empresa empresa;
+
     public enum Rol {
         ADMIN, EMPLEADO
     }

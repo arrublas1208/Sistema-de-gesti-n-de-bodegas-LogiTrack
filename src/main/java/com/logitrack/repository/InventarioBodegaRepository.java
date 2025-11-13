@@ -32,18 +32,18 @@ public interface InventarioBodegaRepository extends JpaRepository<InventarioBode
     @Query("SELECT i FROM InventarioBodega i WHERE i.stock <= i.stockMinimo ORDER BY i.stock ASC")
     List<InventarioBodega> findAllStockBajo();
 
-    @Query("SELECT i FROM InventarioBodega i")
-    Page<InventarioBodega> findAllPageable(Pageable pageable);
+    @Query("SELECT i FROM InventarioBodega i WHERE i.bodega.empresa.id = :empresaId")
+    Page<InventarioBodega> findAllPageableByEmpresa(@Param("empresaId") Long empresaId, Pageable pageable);
 
-    @Query("SELECT i FROM InventarioBodega i WHERE (:stockMinimo IS NULL OR i.stock <= :stockMinimo)")
-    Page<InventarioBodega> findByStockMinimoFilter(@Param("stockMinimo") Integer stockMinimo, Pageable pageable);
+    @Query("SELECT i FROM InventarioBodega i WHERE i.bodega.empresa.id = :empresaId AND (:stockMinimo IS NULL OR i.stock <= :stockMinimo)")
+    Page<InventarioBodega> findByStockMinimoFilterEmpresa(@Param("empresaId") Long empresaId, @Param("stockMinimo") Integer stockMinimo, Pageable pageable);
 
     // Verificar si existe inventario para bodega y producto
     boolean existsByBodegaIdAndProductoId(Long bodegaId, Long productoId);
 
     // Stock total de un producto en todas las bodegas
-    @Query("SELECT COALESCE(SUM(i.stock), 0) FROM InventarioBodega i WHERE i.producto.id = :productoId")
-    Integer getTotalStockByProducto(@Param("productoId") Long productoId);
+    @Query("SELECT COALESCE(SUM(i.stock), 0) FROM InventarioBodega i WHERE i.producto.id = :productoId AND i.producto.empresa.id = :empresaId")
+    Integer getTotalStockByProducto(@Param("productoId") Long productoId, @Param("empresaId") Long empresaId);
 
     // Stock disponible de un producto en una bodega específica
     @Query("SELECT COALESCE(i.stock, 0) FROM InventarioBodega i WHERE i.bodega.id = :bodegaId AND i.producto.id = :productoId")

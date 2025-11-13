@@ -10,13 +10,15 @@ import lombok.*;
 @Table(name = "movimiento_detalle",
        uniqueConstraints = @UniqueConstraint(columnNames = {"movimiento_id", "producto_id"}))
 @EntityListeners(AuditoriaListener.class)
-@Data
+@Getter
+@Setter
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 public class MovimientoDetalle {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @EqualsAndHashCode.Include
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)

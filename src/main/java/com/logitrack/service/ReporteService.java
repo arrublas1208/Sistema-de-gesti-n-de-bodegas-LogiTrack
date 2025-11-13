@@ -26,12 +26,21 @@ public class ReporteService {
     private final MovimientoDetalleRepository detalleRepository;
     private final BodegaRepository bodegaRepository;
     private final InventarioBodegaRepository inventarioBodegaRepository;
+    private final com.logitrack.repository.UsuarioRepository usuarioRepository;
+    private final com.logitrack.repository.MovimientoRepository movimientoRepository;
 
     @Value("${reportes.stock-bajo.threshold:10}")
     private int defaultThreshold;
 
     @Value("${reportes.stock-bajo.max-threshold:1000}")
     private int maxThreshold;
+
+    private Long currentEmpresaId() {
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        String username = auth != null ? auth.getName() : null;
+        if (username == null) return null;
+        return usuarioRepository.findByUsername(username).map(u -> u.getEmpresa().getId()).orElse(null);
+    }
 
     public ReporteResumen generarResumen() {
         return generarResumen(defaultThreshold);
@@ -44,11 +53,20 @@ public class ReporteService {
         if (threshold > maxThreshold) {
             throw new BusinessException("El parámetro 'threshold' no debe ser mayor a " + maxThreshold);
         }
-        // Stock bajo (productos con stock < threshold)
-        List<Producto> stockBajo = productoRepository.findByStockLessThan(threshold);
+        Long empresaId = currentEmpresaId();
 
-        // Productos más movidos (por cantidad total en movimientos)
-        List<ReporteResumen.ProductoMovido> masMovidos = detalleRepository.findAll().stream()
+        // Stock bajo (productos con stock < threshold) filtrado por empresa
+        List<Producto> productosEmpresa = productoRepository.findByEmpresaId(empresaId, org.springframework.data.domain.PageRequest.of(0, Integer.MAX_VALUE)).getContent();
+        List<Producto> stockBajo = productosEmpresa.stream()
+                .filter(p -> (p.getStock() != null ? p.getStock() : 0) < threshold)
+                .collect(java.util.stream.Collectors.toList());
+
+        // Productos más movidos (por cantidad total en movimientos) filtrado por empresa
+        java.util.List<com.logitrack.model.Movimiento> movimientosEmpresa = movimientoRepository.findByUsuarioEmpresaId(empresaId);
+        java.util.List<MovimientoDetalle> detallesEmpresa = movimientosEmpresa.stream()
+                .flatMap(m -> detalleRepository.findByMovimientoId(m.getId()).stream())
+                .collect(java.util.stream.Collectors.toList());
+        List<ReporteResumen.ProductoMovido> masMovidos = detallesEmpresa.stream()
                 .collect(Collectors.groupingBy(
                         MovimientoDetalle::getProducto,
                         Collectors.summingInt(MovimientoDetalle::getCantidad)
@@ -59,8 +77,8 @@ public class ReporteService {
                 .map(e -> new ReporteResumen.ProductoMovido(e.getKey().getNombre(), e.getValue()))
                 .collect(Collectors.toList());
 
-        // Stock por bodega (real): sumar inventarios por bodega
-        List<ReporteResumen.StockPorBodega> stockPorBodega = bodegaRepository.findAll().stream()
+        // Stock por bodega (real): sumar inventarios por bodega de la empresa
+        List<ReporteResumen.StockPorBodega> stockPorBodega = bodegaRepository.findByEmpresaId(empresaId).stream()
                 .map(b -> {
                     var inventarios = inventarioBodegaRepository.findByBodegaId(b.getId());
                     int totalProductos = inventarios.stream()
@@ -79,8 +97,8 @@ public class ReporteService {
                 })
                 .collect(Collectors.toList());
 
-        // Resumen por categoría (global): stock y valor total
-        Map<String, List<Producto>> productosPorCategoria = productoRepository.findAll().stream()
+        // Resumen por categoría (por empresa): stock y valor total
+        Map<String, List<Producto>> productosPorCategoria = productosEmpresa.stream()
                 .collect(Collectors.groupingBy(p -> p.getCategoria() != null ? p.getCategoria() : "Sin categoría"));
 
         List<ReporteResumen.CategoriaResumen> resumenPorCategoria = productosPorCategoria.entrySet().stream()

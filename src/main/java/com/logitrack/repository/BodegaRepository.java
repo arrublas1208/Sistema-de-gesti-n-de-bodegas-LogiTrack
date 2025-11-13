@@ -7,4 +7,5 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface BodegaRepository extends JpaRepository<Bodega, Long> {
     boolean existsByNombre(String nombre);
+    java.util.List<Bodega> findByEmpresaId(Long empresaId);
 }

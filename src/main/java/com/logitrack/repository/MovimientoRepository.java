@@ -48,4 +48,16 @@ public interface MovimientoRepository extends JpaRepository<Movimiento, Long> {
     // Transferencias hacia una bodega
     @Query("SELECT m FROM Movimiento m WHERE m.tipo = 'TRANSFERENCIA' AND m.bodegaDestino.id = :bodegaId ORDER BY m.fecha DESC")
     List<Movimiento> findTransferenciasHacia(@Param("bodegaId") Long bodegaId);
+
+    // ------ Filtros por empresa (via usuario.empresa) ------
+    List<Movimiento> findByUsuarioEmpresaId(Long empresaId);
+
+    List<Movimiento> findByTipoAndUsuarioEmpresaId(Movimiento.TipoMovimiento tipo, Long empresaId);
+
+    List<Movimiento> findByFechaBetweenAndUsuarioEmpresaId(LocalDateTime inicio, LocalDateTime fin, Long empresaId);
+
+    @Query("SELECT m FROM Movimiento m WHERE (m.bodegaOrigen.id = :bodegaId OR m.bodegaDestino.id = :bodegaId) AND m.usuario.empresa.id = :empresaId")
+    List<Movimiento> findByBodegaOrigenOrDestinoAndEmpresa(@Param("bodegaId") Long bodegaId, @Param("empresaId") Long empresaId);
+
+    List<Movimiento> findTop10ByUsuarioEmpresaIdOrderByFechaDesc(Long empresaId);
 }

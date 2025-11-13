@@ -16,9 +16,18 @@ import java.util.List;
 @Transactional
 public class ProductoService {
     private final ProductoRepository repository;
+    private final com.logitrack.repository.UsuarioRepository usuarioRepository;
+
+    private Long currentEmpresaId() {
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        String username = auth != null ? auth.getName() : null;
+        if (username == null) return null;
+        return usuarioRepository.findByUsername(username).map(u -> u.getEmpresa().getId()).orElse(null);
+    }
 
     public List<Producto> findAll() {
-        return repository.findAll();
+        Long empresaId = currentEmpresaId();
+        return repository.findByEmpresaId(empresaId, org.springframework.data.domain.PageRequest.of(0, Integer.MAX_VALUE)).getContent();
     }
 
     public Producto findById(Long id) {
@@ -29,6 +38,12 @@ public class ProductoService {
     public Producto save(Producto producto) {
         if (repository.existsByNombre(producto.getNombre())) {
             throw new BusinessException("Ya existe un producto con nombre: " + producto.getNombre());
+        }
+        Long empresaId = currentEmpresaId();
+        if (producto.getEmpresa() == null && empresaId != null) {
+            com.logitrack.model.Empresa emp = new com.logitrack.model.Empresa();
+            emp.setId(empresaId);
+            producto.setEmpresa(emp);
         }
         return repository.save(producto);
     }
@@ -58,17 +73,18 @@ public class ProductoService {
     }
 
     public Page<Producto> search(String categoria, String nombreLike, Pageable pageable) {
+        Long empresaId = currentEmpresaId();
         boolean hasCategoria = categoria != null && !categoria.isBlank();
         boolean hasNombre = nombreLike != null && !nombreLike.isBlank();
         if (hasCategoria && hasNombre) {
-            return repository.findByCategoriaContainingIgnoreCaseAndNombreContainingIgnoreCase(categoria, nombreLike, pageable);
+            return repository.findByEmpresaIdAndCategoriaContainingIgnoreCaseAndNombreContainingIgnoreCase(empresaId, categoria, nombreLike, pageable);
         }
         if (hasCategoria) {
-            return repository.findByCategoriaContainingIgnoreCase(categoria, pageable);
+            return repository.findByEmpresaIdAndCategoriaContainingIgnoreCase(empresaId, categoria, pageable);
         }
         if (hasNombre) {
-            return repository.findByNombreContainingIgnoreCase(nombreLike, pageable);
+            return repository.findByEmpresaIdAndNombreContainingIgnoreCase(empresaId, nombreLike, pageable);
         }
-        return repository.findAll(pageable);
+        return repository.findByEmpresaId(empresaId, pageable);
     }
 }

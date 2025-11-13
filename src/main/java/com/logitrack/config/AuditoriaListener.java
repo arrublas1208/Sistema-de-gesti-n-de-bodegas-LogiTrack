@@ -26,8 +26,11 @@ public class AuditoriaListener {
     }
 
     private void registrar(Object entity, Auditoria.Operacion operacion, Object anterior, Object nuevo) {
-        AuditoriaService service = ApplicationContextProvider.getBean(AuditoriaService.class);
-        service.registrar(entity.getClass().getSimpleName(), getId(entity), operacion, anterior, nuevo);
+        try {
+            AuditoriaService service = ApplicationContextProvider.getBean(AuditoriaService.class);
+            service.registrar(entity.getClass().getSimpleName(), getId(entity), operacion, anterior, nuevo);
+        } catch (Exception ignored) {
+        }
     }
 
     private Long getId(Object entity) {

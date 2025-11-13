@@ -24,12 +24,21 @@ public class InventarioBodegaService {
     private final BodegaRepository bodegaRepository;
     private final ProductoRepository productoRepository;
     private final AuditoriaService auditoriaService;
+    private final com.logitrack.repository.UsuarioRepository usuarioRepository;
+
+    private Long currentEmpresaId() {
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        String username = auth != null ? auth.getName() : null;
+        if (username == null) return null;
+        return usuarioRepository.findByUsername(username).map(u -> u.getEmpresa().getId()).orElse(null);
+    }
 
     public Page<InventarioBodega> findAll(Pageable pageable, Integer stockMinimo) {
+        Long empresaId = currentEmpresaId();
         if (stockMinimo != null) {
-            return repository.findByStockMinimoFilter(stockMinimo, pageable);
+            return repository.findByStockMinimoFilterEmpresa(empresaId, stockMinimo, pageable);
         }
-        return repository.findAllPageable(pageable);
+        return repository.findAllPageableByEmpresa(empresaId, pageable);
     }
 
     public InventarioBodega findById(Long id) {
@@ -41,12 +50,23 @@ public class InventarioBodegaService {
         if (!bodegaRepository.existsById(bodegaId)) {
             throw new ResourceNotFoundException("Bodega no encontrada: " + bodegaId);
         }
+        // Validar empresa del usuario
+        Long empresaId = currentEmpresaId();
+        com.logitrack.model.Bodega b = bodegaRepository.findById(bodegaId).orElseThrow(() -> new ResourceNotFoundException("Bodega no encontrada: " + bodegaId));
+        if (!b.getEmpresa().getId().equals(empresaId)) {
+            throw new BusinessException("Acceso denegado a bodega de otra empresa");
+        }
         return repository.findByBodegaId(bodegaId, pageable);
     }
 
     public Page<InventarioBodega> findByProducto(Long productoId, Pageable pageable) {
         if (!productoRepository.existsById(productoId)) {
             throw new ResourceNotFoundException("Producto no encontrado: " + productoId);
+        }
+        Long empresaId = currentEmpresaId();
+        com.logitrack.model.Producto p = productoRepository.findById(productoId).orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado: " + productoId));
+        if (!p.getEmpresa().getId().equals(empresaId)) {
+            throw new BusinessException("Acceso denegado a producto de otra empresa");
         }
         return repository.findByProductoId(productoId, pageable);
     }
@@ -65,6 +85,11 @@ public class InventarioBodegaService {
         if (!bodegaRepository.existsById(bodegaId)) {
             throw new ResourceNotFoundException("Bodega no encontrada: " + bodegaId);
         }
+        Long empresaId = currentEmpresaId();
+        com.logitrack.model.Bodega b = bodegaRepository.findById(bodegaId).orElseThrow(() -> new ResourceNotFoundException("Bodega no encontrada: " + bodegaId));
+        if (!b.getEmpresa().getId().equals(empresaId)) {
+            throw new BusinessException("Acceso denegado a bodega de otra empresa");
+        }
         return repository.findStockBajoByBodega(bodegaId);
     }
 
@@ -72,17 +97,23 @@ public class InventarioBodegaService {
         if (!productoRepository.existsById(productoId)) {
             throw new ResourceNotFoundException("Producto no encontrado: " + productoId);
         }
-        return repository.getTotalStockByProducto(productoId);
+        Long empresaId = currentEmpresaId();
+        return repository.getTotalStockByProducto(productoId, empresaId);
     }
 
     public InventarioBodega save(InventarioBodega inventario) {
         // Validar que la bodega existe
+        Long empresaId = currentEmpresaId();
         Bodega bodega = bodegaRepository.findById(inventario.getBodega().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Bodega no encontrada"));
 
         // Validar que el producto existe
         Producto producto = productoRepository.findById(inventario.getProducto().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado"));
+
+        if (!bodega.getEmpresa().getId().equals(empresaId) || !producto.getEmpresa().getId().equals(empresaId)) {
+            throw new BusinessException("Solo se permite administrar inventario dentro de la misma empresa");
+        }
 
         // Validar que no exista ya un registro para esta combinación
         if (repository.existsByBodegaIdAndProductoId(bodega.getId(), producto.getId())) {

@@ -17,4 +17,5 @@ public class RegisterRequest {
     @Email
     @NotBlank
     private String email;
+    private String empresaNombre;
 }

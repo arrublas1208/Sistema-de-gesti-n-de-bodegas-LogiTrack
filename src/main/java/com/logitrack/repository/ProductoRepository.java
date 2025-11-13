@@ -17,9 +17,10 @@ public interface ProductoRepository extends JpaRepository<Producto, Long> {
 
     boolean existsByNombre(String nombre);
 
-    Page<Producto> findByCategoriaContainingIgnoreCase(String categoria, Pageable pageable);
-
-    Page<Producto> findByNombreContainingIgnoreCase(String nombre, Pageable pageable);
-
-    Page<Producto> findByCategoriaContainingIgnoreCaseAndNombreContainingIgnoreCase(String categoria, String nombre, Pageable pageable);
+    Page<Producto> findByEmpresaId(Long empresaId, Pageable pageable);
+    Page<Producto> findByEmpresaIdAndCategoriaContainingIgnoreCase(Long empresaId, String categoria, Pageable pageable);
+    Page<Producto> findByEmpresaIdAndNombreContainingIgnoreCase(Long empresaId, String nombre, Pageable pageable);
+    Page<Producto> findByEmpresaIdAndCategoriaContainingIgnoreCaseAndNombreContainingIgnoreCase(Long empresaId, String categoria, String nombre, Pageable pageable);
+    @Query("SELECT DISTINCT p.categoria FROM Producto p WHERE p.empresa.id = :empresaId ORDER BY p.categoria")
+    java.util.List<String> findDistinctCategoriasByEmpresaId(Long empresaId);
 }

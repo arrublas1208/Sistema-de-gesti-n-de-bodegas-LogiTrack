@@ -1,9 +1,13 @@
+-- Empresa inicial
+INSERT INTO empresa (id, nombre) VALUES (1, 'Empresa Demo')
+ON DUPLICATE KEY UPDATE nombre=nombre;
+
 -- Usuarios iniciales
 -- Contraseña para 'admin' y 'juan': admin123
 -- Hash BCrypt generado: $2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy
-INSERT INTO usuario (username, password, rol, nombre_completo, email) VALUES
-('admin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'ADMIN', 'Administrador Sistema', 'admin@logitrack.com'),
-('juan', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'EMPLEADO', 'Juan Pérez', 'juan@logitrack.com')
+INSERT INTO usuario (username, password, rol, nombre_completo, email, empresa_id) VALUES
+('admin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'ADMIN', 'Administrador Sistema', 'admin@logitrack.com', 1),
+('juan', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'EMPLEADO', 'Juan Pérez', 'juan@logitrack.com', 1)
 ON DUPLICATE KEY UPDATE username=username;
 
 -- Bodegas iniciales
@@ -45,3 +49,7 @@ INSERT INTO inventario_bodega (bodega_id, producto_id, stock, stock_minimo, stoc
 (3, 3, 40, 15, 150),  -- Teclado RGB: 40 unidades
 (3, 4, 15, 5, 80)     -- Escritorio: 15 unidades
 ON DUPLICATE KEY UPDATE stock=stock;
+
+-- Asegurar empresa para bodegas y productos existentes
+UPDATE bodega SET empresa_id = 1 WHERE empresa_id IS NULL;
+UPDATE producto SET empresa_id = 1 WHERE empresa_id IS NULL;

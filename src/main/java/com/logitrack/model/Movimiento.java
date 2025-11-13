@@ -12,13 +12,15 @@ import java.util.List;
 @Entity
 @Table(name = "movimiento")
 @EntityListeners(AuditoriaListener.class)
-@Data
+@Getter
+@Setter
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 public class Movimiento {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @EqualsAndHashCode.Include
     private Long id;
 
     @Column(nullable = false)
@@ -44,7 +46,6 @@ public class Movimiento {
 
     @OneToMany(mappedBy = "movimiento", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonManagedReference
-    @Builder.Default
     private List<MovimientoDetalle> detalles = new ArrayList<>();
 
     @Column(length = 500)

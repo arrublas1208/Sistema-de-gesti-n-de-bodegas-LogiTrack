@@ -3,6 +3,7 @@ package com.logitrack.security;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -33,11 +34,19 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.POST, "/api/auth/register-admin").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/register").hasRole("ADMIN")
+                        .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/", "/index.html", "/static/**", "/assets/**", "/*.js", "/*.css", "/*.jsx").permitAll()
                         .requestMatchers("/api/productos/**").hasAnyRole("ADMIN", "EMPLEADO")
-                        .requestMatchers("/api/bodegas/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/bodegas/**").hasAnyRole("ADMIN", "EMPLEADO")
+                        .requestMatchers(HttpMethod.POST, "/api/bodegas/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/bodegas/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/bodegas/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/usuarios/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/categorias/**").hasAnyRole("ADMIN", "EMPLEADO")
                         .requestMatchers("/api/inventario/**").hasAnyRole("ADMIN", "EMPLEADO")
                         .requestMatchers("/api/movimientos/**").hasAnyRole("ADMIN", "EMPLEADO")
                         .requestMatchers("/api/reportes/**").hasAnyRole("ADMIN", "EMPLEADO")

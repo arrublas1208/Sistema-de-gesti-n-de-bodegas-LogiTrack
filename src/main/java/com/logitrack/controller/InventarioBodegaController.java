@@ -73,23 +73,24 @@ public class InventarioBodegaController {
     }
 
     @GetMapping("/stock-bajo")
-    @Operation(summary = "Obtener todos los productos con stock bajo")
+    @Operation(summary = "Obtener inventario con stock bajo")
     public ResponseEntity<List<InventarioBodega>> getStockBajo() {
         return ResponseEntity.ok(service.findStockBajo());
     }
 
     @GetMapping("/bodega/{bodegaId}/stock-bajo")
-    @Operation(summary = "Obtener productos con stock bajo en una bodega")
+    @Operation(summary = "Obtener inventario con stock bajo por bodega")
     public ResponseEntity<List<InventarioBodega>> getStockBajoByBodega(@PathVariable Long bodegaId) {
         return ResponseEntity.ok(service.findStockBajoByBodega(bodegaId));
     }
 
     @GetMapping("/producto/{productoId}/total-stock")
     @Operation(summary = "Obtener stock total de un producto en todas las bodegas")
-    public ResponseEntity<Map<String, Integer>> getTotalStock(@PathVariable Long productoId) {
-        Integer totalStock = service.getTotalStockByProducto(productoId);
-        return ResponseEntity.ok(Map.of("productoId", productoId.intValue(), "totalStock", totalStock));
+    public ResponseEntity<java.util.Map<String, Integer>> getTotalStockByProducto(@PathVariable Long productoId) {
+        Integer total = service.getTotalStockByProducto(productoId);
+        return ResponseEntity.ok(java.util.Map.of("totalStock", total));
     }
+
 
     @PostMapping
     @Operation(summary = "Crear nuevo registro de inventario")
@@ -125,24 +126,14 @@ public class InventarioBodegaController {
     }
 
     @PatchMapping("/bodega/{bodegaId}/producto/{productoId}/ajustar")
-    @Operation(summary = "Ajustar stock de un producto en una bodega (positivo para sumar, negativo para restar)")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "OK - Stock ajustado",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = InventarioBodega.class))),
-            @ApiResponse(responseCode = "400", description = "BAD REQUEST - Error de negocio/validación",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponseDTO.class))),
-            @ApiResponse(responseCode = "404", description = "NOT FOUND - Inventario no encontrado",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponseDTO.class)))
-    })
+    @Operation(summary = "Ajustar stock de un producto en una bodega")
     public ResponseEntity<InventarioBodega> ajustarStock(
             @PathVariable Long bodegaId,
             @PathVariable Long productoId,
             @RequestParam Integer cantidad) {
         return ResponseEntity.ok(service.ajustarStock(bodegaId, productoId, cantidad));
     }
+
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Eliminar inventario")
@@ -156,4 +147,5 @@ public class InventarioBodegaController {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }
+
 }

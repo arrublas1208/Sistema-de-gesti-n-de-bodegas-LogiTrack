@@ -14,9 +14,18 @@ import java.util.List;
 @Transactional
 public class BodegaService {
     private final BodegaRepository repository;
+    private final com.logitrack.repository.UsuarioRepository usuarioRepository;
+
+    private Long currentEmpresaId() {
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        String username = auth != null ? auth.getName() : null;
+        if (username == null) return null;
+        return usuarioRepository.findByUsername(username).map(u -> u.getEmpresa().getId()).orElse(null);
+    }
 
     public List<Bodega> findAll() {
-        return repository.findAll();
+        Long empresaId = currentEmpresaId();
+        return repository.findByEmpresaId(empresaId);
     }
 
     public Bodega findById(Long id) {
@@ -27,6 +36,12 @@ public class BodegaService {
     public Bodega save(Bodega bodega) {
         if (repository.existsByNombre(bodega.getNombre())) {
             throw new BusinessException("Ya existe una bodega con nombre: " + bodega.getNombre());
+        }
+        Long empresaId = currentEmpresaId();
+        if (bodega.getEmpresa() == null && empresaId != null) {
+            com.logitrack.model.Empresa emp = new com.logitrack.model.Empresa();
+            emp.setId(empresaId);
+            bodega.setEmpresa(emp);
         }
         return repository.save(bodega);
     }

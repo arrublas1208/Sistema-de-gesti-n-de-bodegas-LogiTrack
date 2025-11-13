@@ -5,6 +5,7 @@ import jakarta.validation.constraints.*;
 import lombok.*;
 import com.logitrack.config.AuditoriaListener;
 import java.math.BigDecimal;
+import com.logitrack.model.Empresa;
 
 @Entity
 @Table(name = "producto")
@@ -36,4 +37,9 @@ public class Producto {
     @DecimalMin("0.01")
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal precio;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "empresa_id", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private Empresa empresa;
 }

@@ -1,6 +1,12 @@
 CREATE DATABASE IF NOT EXISTS logitrack_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE logitrack_db;
 
+-- Tabla Empresa (debe existir antes de FKs)
+CREATE TABLE IF NOT EXISTS empresa (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL UNIQUE
+);
+
 -- Tabla Bodega
 CREATE TABLE IF NOT EXISTS bodega (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -10,6 +16,72 @@ CREATE TABLE IF NOT EXISTS bodega (
     encargado VARCHAR(100) NOT NULL
 );
 
+-- Idempotente: agregar columna empresa_id a bodega si no existe
+SET @col_bodega_emp := (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = 'logitrack_db' AND TABLE_NAME = 'bodega' AND COLUMN_NAME = 'empresa_id'
+);
+SET @ddl_bodega_emp := IF(@col_bodega_emp = 0,
+    'ALTER TABLE bodega ADD COLUMN empresa_id BIGINT NULL',
+    'SELECT 1'
+);
+PREPARE stmt_bodega_emp FROM @ddl_bodega_emp; EXECUTE stmt_bodega_emp; DEALLOCATE PREPARE stmt_bodega_emp;
+
+-- Agregar FK empresa a bodega si no existe
+SET @fk_bodega_emp := (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+    WHERE TABLE_SCHEMA = 'logitrack_db' AND TABLE_NAME = 'bodega' AND CONSTRAINT_NAME = 'fk_bodega_empresa'
+);
+SET @ddl_fk_bodega_emp := IF(@fk_bodega_emp = 0,
+    'ALTER TABLE bodega ADD CONSTRAINT fk_bodega_empresa FOREIGN KEY (empresa_id) REFERENCES empresa(id)',
+    'SELECT 1'
+);
+PREPARE stmt_fk_bodega_emp FROM @ddl_fk_bodega_emp; EXECUTE stmt_fk_bodega_emp; DEALLOCATE PREPARE stmt_fk_bodega_emp;
+
+-- Idempotente: agregar columna encargado_id a bodega si no existe
+SET @col_bodega_enc := (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = 'logitrack_db' AND TABLE_NAME = 'bodega' AND COLUMN_NAME = 'encargado_id'
+);
+SET @ddl_bodega_enc := IF(@col_bodega_enc = 0,
+    'ALTER TABLE bodega ADD COLUMN encargado_id BIGINT NULL',
+    'SELECT 1'
+);
+PREPARE stmt_bodega_enc FROM @ddl_bodega_enc; EXECUTE stmt_bodega_enc; DEALLOCATE PREPARE stmt_bodega_enc;
+
+-- Agregar FK encargado a bodega si no existe
+SET @fk_bodega_enc := (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+    WHERE TABLE_SCHEMA = 'logitrack_db' AND TABLE_NAME = 'bodega' AND CONSTRAINT_NAME = 'fk_bodega_encargado'
+);
+SET @ddl_fk_bodega_enc := IF(@fk_bodega_enc = 0,
+    'ALTER TABLE bodega ADD CONSTRAINT fk_bodega_encargado FOREIGN KEY (encargado_id) REFERENCES usuario(id)',
+    'SELECT 1'
+);
+PREPARE stmt_fk_bodega_enc FROM @ddl_fk_bodega_enc; EXECUTE stmt_fk_bodega_enc; DEALLOCATE PREPARE stmt_fk_bodega_enc;
+
+-- Migración de datos: copiar bodega.encargado (texto) a bodega.encargado_id
+SET @needs_update := (
+    SELECT COUNT(*) FROM bodega WHERE encargado_id IS NULL
+);
+SET @ddl_update_enc := IF(@needs_update > 0,
+    'UPDATE bodega b JOIN usuario u ON (u.nombre_completo = b.encargado OR u.username = b.encargado) SET b.encargado_id = u.id WHERE b.encargado_id IS NULL',
+    'SELECT 1'
+);
+PREPARE stmt_update_enc FROM @ddl_update_enc; EXECUTE stmt_update_enc; DEALLOCATE PREPARE stmt_update_enc;
+
+-- Eliminar columna antigua "encargado" si existe
+SET @col_encargado_exists := (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = 'logitrack_db' AND TABLE_NAME = 'bodega' AND COLUMN_NAME = 'encargado'
+);
+SET @ddl_drop_encargado := IF(@col_encargado_exists > 0,
+    'ALTER TABLE bodega DROP COLUMN encargado',
+    'SELECT 1'
+);
+PREPARE stmt_drop_encargado FROM @ddl_drop_encargado; EXECUTE stmt_drop_encargado; DEALLOCATE PREPARE stmt_drop_encargado;
+
+
 -- Tabla Producto
 CREATE TABLE IF NOT EXISTS producto (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -18,6 +90,28 @@ CREATE TABLE IF NOT EXISTS producto (
     stock INT NOT NULL DEFAULT 0 CHECK (stock >= 0),
     precio DECIMAL(10,2) NOT NULL CHECK (precio > 0)
 );
+
+-- Idempotente: agregar columna empresa_id a producto si no existe
+SET @col_producto_emp := (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = 'logitrack_db' AND TABLE_NAME = 'producto' AND COLUMN_NAME = 'empresa_id'
+);
+SET @ddl_producto_emp := IF(@col_producto_emp = 0,
+    'ALTER TABLE producto ADD COLUMN empresa_id BIGINT NULL',
+    'SELECT 1'
+);
+PREPARE stmt_producto_emp FROM @ddl_producto_emp; EXECUTE stmt_producto_emp; DEALLOCATE PREPARE stmt_producto_emp;
+
+-- Agregar FK empresa a producto si no existe
+SET @fk_producto_emp := (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+    WHERE TABLE_SCHEMA = 'logitrack_db' AND TABLE_NAME = 'producto' AND CONSTRAINT_NAME = 'fk_producto_empresa'
+);
+SET @ddl_fk_producto_emp := IF(@fk_producto_emp = 0,
+    'ALTER TABLE producto ADD CONSTRAINT fk_producto_empresa FOREIGN KEY (empresa_id) REFERENCES empresa(id)',
+    'SELECT 1'
+);
+PREPARE stmt_fk_producto_emp FROM @ddl_fk_producto_emp; EXECUTE stmt_fk_producto_emp; DEALLOCATE PREPARE stmt_fk_producto_emp;
 
 -- Tabla Inventario Bodega (OBLIGATORIA: Stock real por bodega)
 CREATE TABLE IF NOT EXISTS inventario_bodega (
@@ -43,6 +137,28 @@ CREATE TABLE IF NOT EXISTS usuario (
     nombre_completo VARCHAR(100) NOT NULL,
     email VARCHAR(100) NOT NULL UNIQUE
 );
+
+-- Idempotente: agregar columna empresa_id a usuario si no existe
+SET @col_empresa := (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = 'logitrack_db' AND TABLE_NAME = 'usuario' AND COLUMN_NAME = 'empresa_id'
+);
+SET @ddl_emp := IF(@col_empresa = 0,
+    'ALTER TABLE usuario ADD COLUMN empresa_id BIGINT NULL',
+    'SELECT 1'
+);
+PREPARE stmt2 FROM @ddl_emp; EXECUTE stmt2; DEALLOCATE PREPARE stmt2;
+
+-- Agregar FK si no existe
+SET @fk_empresa := (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+    WHERE TABLE_SCHEMA = 'logitrack_db' AND TABLE_NAME = 'usuario' AND CONSTRAINT_NAME = 'fk_usuario_empresa'
+);
+SET @ddl_fk := IF(@fk_empresa = 0,
+    'ALTER TABLE usuario ADD CONSTRAINT fk_usuario_empresa FOREIGN KEY (empresa_id) REFERENCES empresa(id)',
+    'SELECT 1'
+);
+PREPARE stmt3 FROM @ddl_fk; EXECUTE stmt3; DEALLOCATE PREPARE stmt3;
 
 -- Tabla Movimiento
 CREATE TABLE IF NOT EXISTS movimiento (
@@ -97,3 +213,4 @@ CREATE TABLE IF NOT EXISTS auditoria (
     valores_nuevos JSON NULL,
     FOREIGN KEY (usuario_id) REFERENCES usuario(id)
 );
+-- Ajustes finales: índices opcionales

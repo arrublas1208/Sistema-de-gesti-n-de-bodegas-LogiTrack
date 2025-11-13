@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
 import com.logitrack.config.AuditoriaListener;
+import com.logitrack.model.Empresa;
 
 @Entity
 @Table(name = "bodega")
@@ -31,8 +32,13 @@ public class Bodega {
     @Column(nullable = false)
     private Integer capacidad;
 
-    @NotBlank
-    @Size(max = 100)
-    @Column(nullable = false)
-    private String encargado;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "encargado_id", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"password", "empresa", "email"})
+    private Usuario encargado;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "empresa_id", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private Empresa empresa;
 }
