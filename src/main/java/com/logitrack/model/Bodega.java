@@ -28,10 +28,12 @@ public class Bodega {
     @Column(nullable = false)
     private String ubicacion;
 
+    @NotNull
     @Min(1)
     @Column(nullable = false)
     private Integer capacidad;
 
+    @NotNull
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "encargado_id", nullable = false)
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"password", "empresa", "email", "hibernateLazyInitializer", "handler"})

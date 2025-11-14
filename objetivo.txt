@@ -95,3 +95,23 @@ src/
  ├─ security/
 
  └─ exception/
+
+
+
+Resultado esperado
+
+Entregables
+
+Código fuente completo del backend en Spring Boot.
+Scripts SQL (schema.sql y data.sql).
+Documentación Swagger.
+README con:
+Descripción del proyecto.
+Instrucciones de instalación y ejecución.
+Ejemplos de endpoints.
+Capturas de Swagger y pruebas.
+Carpeta frontend/ con HTML/CSS/JS que consuma los endpoints.
+Documento explicativo (PDF o Markdown) con:
+Diagrama de clases.
+Descripción de arquitectura.
+Ejemplo de token JWT y uso.

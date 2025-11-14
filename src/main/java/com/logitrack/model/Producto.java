@@ -29,11 +29,13 @@ public class Producto {
     @Column(nullable = false)
     private String categoria;
 
+    @NotNull
     @Min(0)
     @Column(nullable = false)
     @Builder.Default
     private Integer stock = 0;
 
+    @NotNull
     @DecimalMin("0.01")
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal precio;
