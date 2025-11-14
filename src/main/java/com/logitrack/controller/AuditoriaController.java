@@ -63,4 +63,11 @@ public class AuditoriaController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fin) {
         return ResponseEntity.ok(service.findByFechas(inicio, fin));
     }
+
+    @GetMapping("/page")
+    @Operation(summary = "Obtener auditoría paginada")
+    public ResponseEntity<org.springframework.data.domain.Page<Auditoria>> getAllPage(
+            @org.springframework.data.web.PageableDefault(size = 20) org.springframework.data.domain.Pageable pageable) {
+        return ResponseEntity.ok(service.findAllPage(pageable));
+    }
 }

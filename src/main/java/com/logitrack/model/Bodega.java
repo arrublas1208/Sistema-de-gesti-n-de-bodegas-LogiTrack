@@ -32,9 +32,9 @@ public class Bodega {
     @Column(nullable = false)
     private Integer capacidad;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "encargado_id", nullable = false)
-    @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"password", "empresa", "email"})
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"password", "empresa", "email", "hibernateLazyInitializer", "handler"})
     private Usuario encargado;
 
     @ManyToOne(fetch = FetchType.LAZY)

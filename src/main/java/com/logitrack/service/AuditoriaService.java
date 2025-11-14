@@ -18,12 +18,21 @@ public class AuditoriaService {
     private final AuditoriaRepository repository;
     private final UsuarioRepository usuarioRepository;
 
+    private Long currentEmpresaId() {
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        String username = auth != null ? auth.getName() : null;
+        if (username == null) return null;
+        return usuarioRepository.findByUsername(username).map(u -> u.getEmpresa().getId()).orElse(null);
+    }
+
     public List<Auditoria> findAll() {
-        return repository.findAll();
+        Long empresaId = currentEmpresaId();
+        return repository.findTop20ByUsuarioEmpresaIdOrderByFechaDesc(empresaId);
     }
 
     public List<Auditoria> findUltimas(Integer limite) {
-        List<Auditoria> ultimas = repository.findTop20ByOrderByFechaDesc();
+        Long empresaId = currentEmpresaId();
+        List<Auditoria> ultimas = repository.findTop20ByUsuarioEmpresaIdOrderByFechaDesc(empresaId);
         if (limite == null || limite >= ultimas.size()) {
             return ultimas;
         }
@@ -31,23 +40,35 @@ public class AuditoriaService {
     }
 
     public List<Auditoria> findByEntidad(String entidad) {
-        return repository.findByEntidad(entidad);
+        Long empresaId = currentEmpresaId();
+        return repository.findByEntidadAndUsuarioEmpresaId(entidad, empresaId, org.springframework.data.domain.PageRequest.of(0, Integer.MAX_VALUE)).getContent();
     }
 
     public List<Auditoria> findByEntidadAndId(String entidad, Long entidadId) {
-        return repository.findByEntidadAndEntidadId(entidad, entidadId);
+        Long empresaId = currentEmpresaId();
+        return repository.findByEntidadAndEntidadIdAndUsuarioEmpresaId(entidad, entidadId, empresaId, org.springframework.data.domain.PageRequest.of(0, Integer.MAX_VALUE)).getContent();
     }
 
     public List<Auditoria> findByUsuario(Long usuarioId) {
-        return repository.findByUsuarioId(usuarioId);
+        Long empresaId = currentEmpresaId();
+        return repository.findByUsuarioId(usuarioId).stream()
+                .filter(a -> a.getUsuario() != null && a.getUsuario().getEmpresa() != null && a.getUsuario().getEmpresa().getId().equals(empresaId))
+                .collect(java.util.stream.Collectors.toList());
     }
 
     public List<Auditoria> findByOperacion(Auditoria.Operacion operacion) {
-        return repository.findByOperacion(operacion);
+        Long empresaId = currentEmpresaId();
+        return repository.findByOperacionAndUsuarioEmpresaId(operacion, empresaId, org.springframework.data.domain.PageRequest.of(0, Integer.MAX_VALUE)).getContent();
     }
 
     public List<Auditoria> findByFechas(LocalDateTime inicio, LocalDateTime fin) {
-        return repository.findByFechaBetween(inicio, fin);
+        Long empresaId = currentEmpresaId();
+        return repository.findByFechaBetweenAndUsuarioEmpresaId(inicio, fin, empresaId, org.springframework.data.domain.PageRequest.of(0, Integer.MAX_VALUE)).getContent();
+    }
+
+    public org.springframework.data.domain.Page<Auditoria> findAllPage(org.springframework.data.domain.Pageable pageable) {
+        Long empresaId = currentEmpresaId();
+        return repository.findByUsuarioEmpresaId(empresaId, pageable);
     }
 
     public Auditoria registrar(String entidad, Long entidadId, Auditoria.Operacion operacion, Object anteriores, Object nuevos) {

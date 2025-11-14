@@ -87,6 +87,11 @@ const AuthContext = {
   use() { return React.useContext(this.Context); }
 };
 
+const ThemeContext = {
+  Context: React.createContext({ darkMode: false, toggleDarkMode: () => {} }),
+  use() { return React.useContext(this.Context); }
+};
+
 function normalize(v) { return (v == null ? "" : v).toString().toLowerCase(); }
 
 function Sidebar({ route, setRoute }) {
@@ -121,10 +126,17 @@ function Sidebar({ route, setRoute }) {
 function Header({ title, right }) {
   const { query, setQuery } = SearchContext.use();
   const { user } = AuthContext.use();
+  const { darkMode, toggleDarkMode } = ThemeContext.use();
   return (
     <div className="header">
       <div className="search-box"><input placeholder={t('buscar')} value={query} onChange={e=>setQuery(e.target.value)} /></div>
-      <div className="toolbar"><span className="profile" style={{display: 'flex', alignItems: 'center', gap: '8px'}}><span>👤</span><span>{user?.username || 'Usuario'}</span></span>{right}</div>
+      <div className="toolbar">
+        <button onClick={toggleDarkMode} className="theme-toggle" title={darkMode ? "Modo claro" : "Modo oscuro"}>
+          <Icon name={darkMode ? "sun" : "moon"} />
+        </button>
+        <span className="profile" style={{display: 'flex', alignItems: 'center', gap: '8px'}}><span>👤</span><span>{user?.username || 'Usuario'}</span></span>
+        {right}
+      </div>
     </div>
   );
 }
@@ -259,6 +271,8 @@ function BodegasView() {
   const [nombre, setNombre] = React.useState("");
   const [ubicacion, setUbicacion] = React.useState("");
   const [encargado, setEncargado] = React.useState("");
+  const [cedulaEncargado, setCedulaEncargado] = React.useState("");
+  const [encargadoNombre, setEncargadoNombre] = React.useState("");
   const [capacidad, setCapacidad] = React.useState("");
   const [status, setStatus] = React.useState("");
   const [editId, setEditId] = React.useState(null);
@@ -271,7 +285,7 @@ function BodegasView() {
     try {
       const body = { nombre, ubicacion, capacidad: (Number(capacidad) && Number(capacidad) > 0 ? Number(capacidad) : 1), encargado: (encargado ? { id: Number(encargado) } : null) };
       await api("/bodegas", { method: "POST", body: JSON.stringify(body) });
-      setNombre(""); setUbicacion(""); setEncargado(""); setCapacidad(""); list.reload(); setStatus("Creada");
+      setNombre(""); setUbicacion(""); setEncargado(""); setCedulaEncargado(""); setEncargadoNombre(""); setCapacidad(""); list.reload(); setStatus("Creada");
     } catch (e) {
       const msg = String(e && e.message || "Error");
       setStatus(msg.includes("403") ? "403 - Acceso restringido a ADMIN" : msg);
@@ -307,11 +321,18 @@ function BodegasView() {
                 ))}
               </select>
             </div>
+            <div className="field"><label>Cédula</label>
+              <div style={{display:'flex', gap:'8px'}}>
+                <input value={cedulaEncargado} onChange={e=>setCedulaEncargado(e.target.value)} placeholder="Cédula del encargado" />
+                <button className="btn" onClick={async ()=>{ try { const u = await api(`/usuarios/by-cedula/${encodeURIComponent(cedulaEncargado)}`); if (u && u.id) { setEncargado(String(u.id)); setEncargadoNombre(u.nombreCompleto||''); } } catch(_){} }}><Icon name="magnifying-glass" />Buscar</button>
+              </div>
+              {encargadoNombre && <div className="status">{encargadoNombre}</div>}
+            </div>
             <div className="field"><label>{t('capacidad')}</label><input type="number" placeholder={t('capacidad')} value={capacidad} onChange={e=>setCapacidad(e.target.value)} /></div>
             <div className="actions"><button className="btn" onClick={crear}><Icon name="plus" />{t('crear')}</button></div>
           </div>
-          </div>
         </div>
+      </div>
         <div className="panel">
           <div className="panel-header"><strong>{t('listado')}</strong></div>
           <div className="panel-body">
@@ -375,6 +396,7 @@ function ProductosView() {
   }, [categoriaFiltro, nombreLikeFiltro, page, size, sort]);
   const [nombre, setNombre] = React.useState("");
   const [categoria, setCategoria] = React.useState("");
+  const [nuevaCategoria, setNuevaCategoria] = React.useState("");
   const [precio, setPrecio] = React.useState("");
   const [stock, setStock] = React.useState("");
   const [status, setStatus] = React.useState("");
@@ -385,7 +407,8 @@ function ProductosView() {
   const [editStock, setEditStock] = React.useState("");
 
   const crear = async () => {
-    await api("/productos", { method: "POST", body: JSON.stringify({ nombre, categoria, precio: Number(precio)||0, stock: Number(stock)||0 }) });
+    const cat = (nuevaCategoria && nuevaCategoria.trim()) ? nuevaCategoria.trim() : categoria;
+    await api("/productos", { method: "POST", body: JSON.stringify({ nombre, categoria: cat, precio: Number(precio)||0, stock: Number(stock)||0 }) });
     setNombre(""); setCategoria(""); setPrecio(""); setStock(""); list.reload(); categorias.reload(); setStatus("Creado");
   };
   const eliminar = async (id) => { if(!window.confirm("¿Eliminar este producto?")) return; await api(`/productos/${id}`, { method: "DELETE" }); list.reload(); };
@@ -410,6 +433,7 @@ function ProductosView() {
                   ))}
                 </select>
               </div>
+              <div className="field"><label>Nueva categoría</label><input value={nuevaCategoria} onChange={e=>setNuevaCategoria(e.target.value)} placeholder="Escriba una nueva categoría" /></div>
               <div className="field"><label>{t('precio')}</label><input type="number" value={precio} onChange={e=>setPrecio(e.target.value)} /></div>
               <div className="field"><label>{t('stock')}</label><input type="number" value={stock} onChange={e=>setStock(e.target.value)} /></div>
               <div className="actions"><button className="btn" onClick={crear}><Icon name="plus" />{t('crear')}</button></div>
@@ -1038,6 +1062,7 @@ function Register({ onSuccess, onLoginClick, submitPath = "/auth/register", defa
   const [nombreCompleto, setNombreCompleto] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [cedula, setCedula] = React.useState("");
   const [rol, setRol] = React.useState(defaultRol);
   const [error, setError] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -1048,9 +1073,42 @@ function Register({ onSuccess, onLoginClick, submitPath = "/auth/register", defa
     setLoading(true);
 
     try {
+      // Validación de cédula
+      if (!/^\d{6,20}$/.test(cedula)) {
+        setError("Cédula inválida. Debe tener 6-20 dígitos.");
+        setLoading(false);
+        return;
+      }
+
+      // Validación de contraseña fuerte
+      if (password.length < 8) {
+        setError("La contraseña debe tener al menos 8 caracteres.");
+        setLoading(false);
+        return;
+      }
+      if (!/[A-Z]/.test(password)) {
+        setError("La contraseña debe contener al menos una letra mayúscula.");
+        setLoading(false);
+        return;
+      }
+      if (!/[a-z]/.test(password)) {
+        setError("La contraseña debe contener al menos una letra minúscula.");
+        setLoading(false);
+        return;
+      }
+      if (!/[0-9]/.test(password)) {
+        setError("La contraseña debe contener al menos un número.");
+        setLoading(false);
+        return;
+      }
+      if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+        setError("La contraseña debe contener al menos un carácter especial.");
+        setLoading(false);
+        return;
+      }
       const response = await api(submitPath, {
         method: "POST",
-        body: JSON.stringify({ username, nombreCompleto, email, password, rol })
+        body: JSON.stringify({ username, nombreCompleto, email, password, rol, cedula })
       });
 
       if (response) {
@@ -1090,6 +1148,17 @@ function Register({ onSuccess, onLoginClick, submitPath = "/auth/register", defa
               value={nombreCompleto}
               onChange={(e) => setNombreCompleto(e.target.value)}
               placeholder="Ingrese su nombre completo"
+              required
+            />
+          </div>
+
+          <div className="auth-field">
+            <label>Cédula</label>
+            <input
+              type="text"
+              value={cedula}
+              onChange={(e) => setCedula(e.target.value)}
+              placeholder="Documento de identidad"
               required
             />
           </div>
@@ -1173,6 +1242,10 @@ function Root() {
   const [user, setUser] = React.useState(null);
   const [isChecking, setIsChecking] = React.useState(true);
   const [authView, setAuthView] = React.useState("login");
+  const [darkMode, setDarkMode] = React.useState(() => {
+    const saved = localStorage.getItem("logitrack_theme");
+    return saved === "dark";
+  });
 
   React.useEffect(() => {
     // Check if user is already logged in
@@ -1190,6 +1263,21 @@ function Root() {
     }
     setIsChecking(false);
   }, []);
+
+  React.useEffect(() => {
+    // Apply dark mode class to body
+    if (darkMode) {
+      document.body.classList.add('dark-mode');
+      localStorage.setItem("logitrack_theme", "dark");
+    } else {
+      document.body.classList.remove('dark-mode');
+      localStorage.setItem("logitrack_theme", "light");
+    }
+  }, [darkMode]);
+
+  const toggleDarkMode = () => {
+    setDarkMode(prev => !prev);
+  };
 
   const handleLoginSuccess = (userData) => {
     setUser(userData);
@@ -1212,16 +1300,23 @@ function Root() {
   }
 
   if (!user) {
-    if (authView === "register-admin") {
-      return <Register submitPath="/auth/register-admin" defaultRol="ADMIN" allowRoleSelect={false} onSuccess={handleLoginSuccess} onLoginClick={() => setAuthView("login")} />;
-    }
-    return <Login onSuccess={handleLoginSuccess} onRegisterClick={() => setAuthView("register-admin")} />;
+    return (
+      <ThemeContext.Context.Provider value={{ darkMode, toggleDarkMode }}>
+        {authView === "register-admin" ? (
+          <Register submitPath="/auth/register-admin" defaultRol="ADMIN" allowRoleSelect={false} onSuccess={handleLoginSuccess} onLoginClick={() => setAuthView("login")} />
+        ) : (
+          <Login onSuccess={handleLoginSuccess} onRegisterClick={() => setAuthView("register-admin")} />
+        )}
+      </ThemeContext.Context.Provider>
+    );
   }
 
   return (
-    <AuthContext.Context.Provider value={{ user, setUser, logout: handleLogout }}>
-      <App />
-    </AuthContext.Context.Provider>
+    <ThemeContext.Context.Provider value={{ darkMode, toggleDarkMode }}>
+      <AuthContext.Context.Provider value={{ user, setUser, logout: handleLogout }}>
+        <App />
+      </AuthContext.Context.Provider>
+    </ThemeContext.Context.Provider>
   );
 }
 

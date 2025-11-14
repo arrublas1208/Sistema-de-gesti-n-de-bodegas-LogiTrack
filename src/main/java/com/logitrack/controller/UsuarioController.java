@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -43,5 +44,19 @@ public class UsuarioController {
                         .build())
                 .collect(Collectors.toList());
         return ResponseEntity.ok(res);
+    }
+
+    @GetMapping("/by-cedula/{cedula}")
+    public ResponseEntity<UsuarioResponse> getByCedula(@PathVariable String cedula) {
+        Long empresaId = currentEmpresaId();
+        return usuarioRepository.findByCedula(cedula)
+                .filter(u -> u.getEmpresa() != null && u.getEmpresa().getId().equals(empresaId))
+                .map(u -> ResponseEntity.ok(UsuarioResponse.builder()
+                        .id(u.getId())
+                        .username(u.getUsername())
+                        .nombreCompleto(u.getNombreCompleto())
+                        .email(u.getEmail())
+                        .build()))
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 }

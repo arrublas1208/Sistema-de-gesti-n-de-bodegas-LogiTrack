@@ -71,6 +71,9 @@ public class ProductoController {
                             schema = @Schema(implementation = ErrorResponseDTO.class)))
     })
     public ResponseEntity<Producto> create(@Valid @RequestBody Producto producto) {
+        if (producto.getCategoria() == null || producto.getCategoria().isBlank()) {
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        }
         return new ResponseEntity<>(service.save(producto), HttpStatus.CREATED);
     }
 

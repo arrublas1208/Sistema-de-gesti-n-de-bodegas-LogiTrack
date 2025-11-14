@@ -39,6 +39,12 @@ public class Usuario {
     @Column(unique = true, nullable = false)
     private String email;
 
+    @NotBlank
+    @Size(max = 20)
+    @Pattern(regexp = "^[0-9]{6,20}$")
+    @Column(unique = true, nullable = false)
+    private String cedula;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "empresa_id", nullable = false)
     private Empresa empresa;

@@ -57,6 +57,9 @@ public class AuthController {
         if (usuarioRepository.existsByEmail(request.getEmail())) {
             return ResponseEntity.badRequest().build();
         }
+        if (usuarioRepository.existsByCedula(request.getCedula())) {
+            return ResponseEntity.badRequest().build();
+        }
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth != null ? auth.getName() : null;
         Usuario creador = currentUsername != null ? usuarioRepository.findByUsername(currentUsername).orElse(null) : null;
@@ -73,6 +76,7 @@ public class AuthController {
                 .rol(Usuario.Rol.valueOf(rolStr))
                 .nombreCompleto(request.getNombreCompleto())
                 .email(request.getEmail())
+                .cedula(request.getCedula())
                 .empresa(creador.getEmpresa())
                 .build();
         Usuario saved = usuarioRepository.save(usuario);
@@ -87,6 +91,9 @@ public class AuthController {
         if (usuarioRepository.existsByEmail(request.getEmail())) {
             return ResponseEntity.badRequest().build();
         }
+        if (usuarioRepository.existsByCedula(request.getCedula())) {
+            return ResponseEntity.badRequest().build();
+        }
         String nombreEmpresa = (request.getEmpresaNombre() != null && !request.getEmpresaNombre().isBlank()) ? request.getEmpresaNombre().trim() : (request.getUsername() + " Inc");
         Empresa empresa = empresaRepository.findByNombre(nombreEmpresa).orElseGet(() -> empresaRepository.save(Empresa.builder().nombre(nombreEmpresa).build()));
         Usuario usuario = Usuario.builder()
@@ -95,6 +102,7 @@ public class AuthController {
                 .rol(Usuario.Rol.ADMIN)
                 .nombreCompleto(request.getNombreCompleto())
                 .email(request.getEmail())
+                .cedula(request.getCedula())
                 .empresa(empresa)
                 .build();
         Usuario saved = usuarioRepository.save(usuario);

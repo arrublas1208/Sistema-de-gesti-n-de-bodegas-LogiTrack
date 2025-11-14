@@ -10,5 +10,7 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     Optional<Usuario> findByUsername(String username);
     boolean existsByUsername(String username);
     boolean existsByEmail(String email);
+    Optional<Usuario> findByCedula(String cedula);
+    boolean existsByCedula(String cedula);
     java.util.List<Usuario> findByEmpresaIdAndRol(Long empresaId, Usuario.Rol rol);
 }

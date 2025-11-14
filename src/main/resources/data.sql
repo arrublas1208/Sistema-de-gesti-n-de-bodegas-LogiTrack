@@ -5,24 +5,24 @@ ON DUPLICATE KEY UPDATE nombre=nombre;
 -- Usuarios iniciales
 -- Contraseña para 'admin' y 'juan': admin123
 -- Hash BCrypt generado: $2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy
-INSERT INTO usuario (username, password, rol, nombre_completo, email, empresa_id) VALUES
-('admin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'ADMIN', 'Administrador Sistema', 'admin@logitrack.com', 1),
-('juan', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'EMPLEADO', 'Juan Pérez', 'juan@logitrack.com', 1)
+INSERT INTO usuario (username, password, rol, nombre_completo, email, empresa_id, cedula) VALUES
+('admin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'ADMIN', 'Administrador Sistema', 'admin@logitrack.com', 1, '1000000000'),
+('juan', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'EMPLEADO', 'Juan Pérez', 'juan@logitrack.com', 1, '1010101010')
 ON DUPLICATE KEY UPDATE username=username;
 
--- Bodegas iniciales
-INSERT INTO bodega (nombre, ubicacion, capacidad, encargado) VALUES
-('Bodega Central', 'Bogotá D.C.', 5000, 'Carlos Gómez'),
-('Bodega Norte', 'Medellín', 3000, 'Ana López'),
-('Bodega Sur', 'Cali', 2500, 'Luis Martínez')
+-- Bodegas iniciales (encargado_id=2 corresponde a 'juan')
+INSERT INTO bodega (nombre, ubicacion, capacidad, empresa_id, encargado_id) VALUES
+('Bodega Central', 'Bogotá D.C.', 5000, 1, 2),
+('Bodega Norte', 'Medellín', 3000, 1, 2),
+('Bodega Sur', 'Cali', 2500, 1, 2)
 ON DUPLICATE KEY UPDATE nombre=nombre;
 
 -- Productos iniciales
-INSERT INTO producto (nombre, categoria, stock, precio) VALUES
-('Laptop Dell', 'Electrónicos', 50, 3500000.00),
-('Silla Oficina', 'Muebles', 120, 450000.00),
-('Teclado RGB', 'Electrónicos', 200, 150000.00),
-('Escritorio', 'Muebles', 80, 1200000.00)
+INSERT INTO producto (nombre, categoria, stock, precio, empresa_id) VALUES
+('Laptop Dell', 'Electrónicos', 50, 3500000.00, 1),
+('Silla Oficina', 'Muebles', 120, 450000.00, 1),
+('Teclado RGB', 'Electrónicos', 200, 150000.00, 1),
+('Escritorio', 'Muebles', 80, 1200000.00, 1)
 ON DUPLICATE KEY UPDATE nombre=nombre;
 
 -- Inventario por Bodega (Stock real distribuido)

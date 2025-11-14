@@ -1,0 +1,10 @@
+FRONTEND ANALYSIS REPORT
+==================================
+
+Vulnerabilities Critical: 5
+Vulnerabilities Medium: 6
+Bugs Critical: 3
+Bugs Medium: 3
+Bugs Minor: 4
+
+Overall Rating: 3/10 - NOT PRODUCTION READY

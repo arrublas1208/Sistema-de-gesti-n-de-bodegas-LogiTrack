@@ -39,6 +39,9 @@ public class ProductoService {
         if (repository.existsByNombre(producto.getNombre())) {
             throw new BusinessException("Ya existe un producto con nombre: " + producto.getNombre());
         }
+        if (producto.getCategoria() != null) {
+            producto.setCategoria(producto.getCategoria().trim());
+        }
         Long empresaId = currentEmpresaId();
         if (producto.getEmpresa() == null && empresaId != null) {
             com.logitrack.model.Empresa emp = new com.logitrack.model.Empresa();
@@ -52,6 +55,9 @@ public class ProductoService {
         Producto existing = findById(id);
         if (!existing.getNombre().equals(producto.getNombre()) && repository.existsByNombre(producto.getNombre())) {
             throw new BusinessException("Nombre ya en uso");
+        }
+        if (producto.getCategoria() != null) {
+            producto.setCategoria(producto.getCategoria().trim());
         }
         producto.setId(id);
         return repository.save(producto);
