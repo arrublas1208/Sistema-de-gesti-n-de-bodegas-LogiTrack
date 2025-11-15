@@ -4,7 +4,9 @@
       "Bash(mvn clean:*)",
       "Bash(./mvnw.cmd clean:*)",
       "Bash(npm install)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(java:*)",
+      "Bash(javac:*)"
     ],
     "deny": [],
     "ask": []

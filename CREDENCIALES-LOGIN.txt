@@ -1,0 +1,35 @@
+=========================================
+   CREDENCIALES DE LOGIN - LOGITRACK
+=========================================
+
+La contraseña ha sido actualizada exitosamente.
+
+URL: http://localhost:8080/logitrack/
+
+CREDENCIALES:
+-------------
+Usuario:     admin
+Contraseña:  admin123
+
+
+IMPORTANTE:
+-----------
+- La contraseña es "admin123" (todo en minúsculas, sin espacios)
+- El hash BCrypt fue generado y verificado correctamente
+- La base de datos está conectada ✅
+- La aplicación está corriendo ✅
+
+Si el login sigue fallando:
+---------------------------
+1. Limpia la caché del navegador (Ctrl+Shift+Delete)
+2. Abre en modo incógnito/privado
+3. Verifica los logs en tiempo real:
+   sudo tail -f /opt/tomcat/logs/catalina.out
+
+Otros usuarios disponibles:
+---------------------------
+Usuario:     juan
+Contraseña:  admin123
+Rol:         EMPLEADO
+
+=========================================

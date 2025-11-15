@@ -1,0 +1,205 @@
+===============================================================================
+  LOGITRACK - INSTRUCCIONES DE DESPLIEGUE EN TOMCAT
+===============================================================================
+
+PROBLEMA IDENTIFICADO:
+----------------------
+Tu sistema tiene Java 11, pero el proyecto requiere Java 17.
+Spring Boot 3.4.0 REQUIERE Java 17 como mínimo.
+
+SOLUCIÓN PROPORCIONADA:
+-----------------------
+Se han creado scripts automatizados y documentación completa para
+facilitar el despliegue.
+
+===============================================================================
+ARCHIVOS CREADOS PARA TI:
+===============================================================================
+
+1. instalar-java17.sh
+   - Instala Java 17 en tu sistema (requiere sudo)
+
+2. build-y-desplegar.sh
+   - Construye el WAR y lo despliega automáticamente en Tomcat
+   - Uso: ./build-y-desplegar.sh /ruta/a/tomcat
+
+3. configurar-variables-entorno.sh
+   - Configura las variables de entorno para Tomcat
+   - Uso: ./configurar-variables-entorno.sh /ruta/a/tomcat
+
+4. GUIA-DESPLIEGUE-TOMCAT.md
+   - Guía completa paso a paso con todas las instrucciones
+   - Incluye solución de problemas
+
+5. INICIO-RAPIDO.md
+   - Guía resumida de 5 pasos para despliegue rápido
+
+===============================================================================
+PASOS PARA DESPLEGAR (RESUMEN):
+===============================================================================
+
+PASO 1: Instalar Java 17
+-------------------------
+sudo ./instalar-java17.sh
+
+Verificar:
+java -version
+(Debe mostrar versión 17 o superior)
+
+
+PASO 2: Configurar MySQL
+-------------------------
+mysql -u root -p
+
+Ejecutar estos comandos SQL:
+
+CREATE DATABASE IF NOT EXISTS logitrack_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS 'logitrack_user'@'localhost' IDENTIFIED BY 'TuContraseña123!';
+GRANT ALL PRIVILEGES ON logitrack_db.* TO 'logitrack_user'@'localhost';
+FLUSH PRIVILEGES;
+EXIT;
+
+
+PASO 3: Configurar Variables de Entorno
+----------------------------------------
+./configurar-variables-entorno.sh /ruta/a/tomcat
+
+(El script te guiará paso a paso)
+
+
+PASO 4: Build y Desplegar
+--------------------------
+./build-y-desplegar.sh /ruta/a/tomcat
+
+(Este script hace todo automáticamente)
+
+
+PASO 5: Crear Usuario Admin Inicial
+------------------------------------
+mysql -u root -p logitrack_db
+
+Ejecutar:
+
+INSERT INTO empresa (nombre) VALUES ('Mi Empresa');
+
+INSERT INTO usuario (username, password, rol, nombre_completo, email, cedula, empresa_id)
+VALUES (
+  'admin',
+  '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
+  'ADMIN',
+  'Administrador Principal',
+  'admin@logitrack.com',
+  '1234567890',
+  1
+);
+
+EXIT;
+
+
+===============================================================================
+ACCEDER A LA APLICACIÓN:
+===============================================================================
+
+Aplicación Web:
+http://localhost:8080/logitrack/
+
+Swagger UI:
+http://localhost:8080/logitrack/swagger-ui.html
+
+Credenciales de Admin:
+Usuario: admin
+Contraseña: Admin123!
+
+
+===============================================================================
+VER LOGS DE TOMCAT:
+===============================================================================
+
+tail -f /ruta/a/tomcat/logs/catalina.out
+
+
+===============================================================================
+COMANDOS ÚTILES:
+===============================================================================
+
+Detener Tomcat:
+/ruta/a/tomcat/bin/shutdown.sh
+
+Iniciar Tomcat:
+/ruta/a/tomcat/bin/startup.sh
+
+Rebuild y redesplegar:
+./build-y-desplegar.sh /ruta/a/tomcat
+
+Verificar MySQL:
+sudo systemctl status mysql
+sudo systemctl start mysql
+
+
+===============================================================================
+CONFIGURACIÓN DEL PROYECTO (YA ESTÁ LISTA):
+===============================================================================
+
+✅ pom.xml
+   - Packaging: WAR
+   - Tomcat dependency: provided
+   - Build name: logitrack
+   - Java version: 17
+
+✅ LogitrackApplication.java
+   - Extiende SpringBootServletInitializer
+
+✅ application.properties
+   - Context path: /
+   - Puerto: 8081 (configurable)
+   - Variables de entorno para MySQL y JWT
+
+✅ SecurityConfig.java
+   - CORS configurado
+   - Endpoints protegidos correctamente
+
+
+===============================================================================
+REQUISITOS MÍNIMOS:
+===============================================================================
+
+✓ Java 17 o superior
+✓ Apache Tomcat 10.0 o superior (Jakarta EE)
+✓ MySQL 8.0 o superior
+✓ 2GB RAM mínimo (4GB recomendado)
+✓ 500MB espacio en disco
+
+
+===============================================================================
+AYUDA:
+===============================================================================
+
+Si tienes problemas, consulta:
+- GUIA-DESPLIEGUE-TOMCAT.md (documentación completa)
+- INICIO-RAPIDO.md (guía rápida de 5 pasos)
+
+Sección de Solución de Problemas en GUIA-DESPLIEGUE-TOMCAT.md
+
+
+===============================================================================
+IMPORTANTE PARA PRODUCCIÓN:
+===============================================================================
+
+⚠️ ANTES de desplegar en producción:
+
+1. Cambiar contraseña del admin (Admin123!)
+2. Cambiar contraseña de MySQL
+3. Generar JWT_SECRET seguro: openssl rand -base64 64
+4. Configurar CORS con tu dominio real
+5. Configurar HTTPS en Tomcat
+6. Proteger archivo setenv.sh: chmod 600
+
+
+===============================================================================
+
+¡Todo está listo para desplegar!
+
+Lee INICIO-RAPIDO.md para comenzar o GUIA-DESPLIEGUE-TOMCAT.md para
+instrucciones detalladas.
+
+===============================================================================

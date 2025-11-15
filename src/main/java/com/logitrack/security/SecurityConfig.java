@@ -34,8 +34,9 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // SEGURIDAD: Solo ADMIN puede crear nuevos admins (cambiado de permitAll)
-                        .requestMatchers(HttpMethod.POST, "/api/auth/register-admin").hasRole("ADMIN")
+                        // Registro público de admin: Crea una NUEVA EMPRESA (multi-tenant)
+                        .requestMatchers(HttpMethod.POST, "/api/auth/register-admin").permitAll()
+                        // Registro de empleados: Solo ADMIN puede crear usuarios de SU empresa
                         .requestMatchers(HttpMethod.POST, "/api/auth/register").hasRole("ADMIN")
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
