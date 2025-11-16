@@ -66,7 +66,7 @@ public class AuthController {
         if (creador == null || creador.getEmpresa() == null) {
             return ResponseEntity.badRequest().build();
         }
-        String rolStr = request.getRol() != null ? request.getRol().trim().toUpperCase() : "";
+        String rolStr = request.getRol() != null && !request.getRol().isBlank() ? request.getRol().trim().toUpperCase() : "EMPLEADO";
         if (!rolStr.equals("EMPLEADO")) {
             return ResponseEntity.badRequest().build();
         }

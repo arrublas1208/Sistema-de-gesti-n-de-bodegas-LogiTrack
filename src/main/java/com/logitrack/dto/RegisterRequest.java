@@ -19,7 +19,6 @@ public class RegisterRequest {
         message = "La contraseña debe contener al menos una mayúscula, una minúscula, un número y un carácter especial"
     )
     private String password;
-    @NotBlank
     private String rol;
     @NotBlank
     private String nombreCompleto;
