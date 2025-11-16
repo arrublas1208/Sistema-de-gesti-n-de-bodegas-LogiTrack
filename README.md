@@ -301,13 +301,13 @@ El sistema sigue una arquitectura en capas con separación de responsabilidades:
 │  JwtAuthenticationFilter │ JwtTokenProvider │ UserDetails   │
 ├─────────────────────────────────────────────────────────────┤
 │                    CAPA DE SERVICIOS                        │
-│     Lógica de Negocio + Validaciones + Auditoría           │
+│     Lógica de Negocio + Validaciones + Auditoría            │
 ├─────────────────────────────────────────────────────────────┤
 │                  CAPA DE REPOSITORIOS                       │
 │              JPA/Hibernate Data Access Layer                │
 ├─────────────────────────────────────────────────────────────┤
 │                    CAPA DE ENTIDADES                        │
-│  Bodega │ Producto │ Usuario │ Inventario │ Movimiento     │
+│  Bodega │ Producto │ Usuario │ Inventario │ Movimiento      │
 │            Auditoria │ Empresa │ Categoría                  │
 ├─────────────────────────────────────────────────────────────┤
 │                  CAPA DE PERSISTENCIA                       │
@@ -997,21 +997,11 @@ Verifica que `spring.sql.init.mode=always` esté en `application.properties` y q
 
 ---
 
-## 🤝 Contribución
-
-Las contribuciones son bienvenidas. Por favor:
-
-1. Haz fork del proyecto
-2. Crea una rama para tu feature (`git checkout -b feature/nueva-caracteristica`)
-3. Commit tus cambios (`git commit -m 'Agregar nueva característica'`)
-4. Push a la rama (`git push origin feature/nueva-caracteristica`)
-5. Abre un Pull Request
-
----
-
-## 📄 Licencia
-
-Este proyecto está bajo la Licencia MIT. Ver archivo `LICENSE` para más detalles.
+## 🤝 Integrante y contacto
+ 
+- **Juan Jose Arrublas**: `https://github.com/arrublas1208`
+- **Isabela Carrillo**: `https://github.com/Isabela-CA`
+- **Carlos Cisneros**: `https://github.com/Carloscisneroides`
 
 ---
 
@@ -1022,6 +1012,8 @@ Este proyecto está bajo la Licencia MIT. Ver archivo `LICENSE` para más detall
 - **Documentación adicional**: Ver archivos en carpeta `docs/`
 
 ---
+
+
 
 ## 🎯 Roadmap Futuro
 
