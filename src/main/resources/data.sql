@@ -6,7 +6,7 @@ ON DUPLICATE KEY UPDATE nombre=nombre;
 -- Contraseña para 'admin' y 'juan': admin123
 -- Hash BCrypt generado: $2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy
 INSERT INTO usuario (username, password, rol, nombre_completo, email, empresa_id, cedula) VALUES
-('admin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'ADMIN', 'Administrador Sistema', 'admin@logitrack.com', 1, '1000000000'),
+('admin', '$2a$12$N9yiYAsGpZiTlUo2Orh3LO3FBr5FVpJJz5pYWG0YeCH6P6hl6fvWa', 'ADMIN', 'Administrador Sistema', 'admin@logitrack.com', 1, '1000000000'),
 ('juan', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'EMPLEADO', 'Juan Pérez', 'juan@logitrack.com', 1, '1010101010')
 ON DUPLICATE KEY UPDATE username=username;
 
