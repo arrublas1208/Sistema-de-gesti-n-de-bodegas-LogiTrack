@@ -33,11 +33,15 @@ public class Bodega {
     @Column(nullable = false)
     private Integer capacidad;
 
-    @NotNull
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "encargado_id", nullable = false)
-    @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"password", "empresa", "email", "hibernateLazyInitializer", "handler"})
-    private Usuario encargado;
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+        name = "bodega_encargado",
+        joinColumns = @JoinColumn(name = "bodega_id"),
+        inverseJoinColumns = @JoinColumn(name = "encargado_id")
+    )
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"password", "empresa", "email", "cedula", "hibernateLazyInitializer", "handler"})
+    @Builder.Default
+    private java.util.List<Usuario> encargados = new java.util.ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "empresa_id", nullable = false)

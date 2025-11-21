@@ -27,5 +27,6 @@ public class RegisterRequest {
     private String email;
     @NotBlank
     private String cedula;
+    private String empId; // ID de empleado dentro de la empresa
     private String empresaNombre;
 }

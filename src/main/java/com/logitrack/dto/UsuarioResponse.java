@@ -14,4 +14,6 @@ public class UsuarioResponse {
     private String username;
     private String nombreCompleto;
     private String email;
+    private String empId;
+    private String cedula;
 }

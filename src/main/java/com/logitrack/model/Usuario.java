@@ -45,6 +45,10 @@ public class Usuario {
     @Column(unique = true, nullable = false)
     private String cedula;
 
+    @Size(max = 50)
+    @Column(name = "emp_id")
+    private String empId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "empresa_id", nullable = false)
     private Empresa empresa;

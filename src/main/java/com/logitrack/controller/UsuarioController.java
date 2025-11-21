@@ -41,6 +41,8 @@ public class UsuarioController {
                         .username(u.getUsername())
                         .nombreCompleto(u.getNombreCompleto())
                         .email(u.getEmail())
+                        .empId(u.getEmpId())
+                        .cedula(u.getCedula())
                         .build())
                 .collect(Collectors.toList());
         return ResponseEntity.ok(res);
@@ -56,6 +58,23 @@ public class UsuarioController {
                         .username(u.getUsername())
                         .nombreCompleto(u.getNombreCompleto())
                         .email(u.getEmail())
+                        .empId(u.getEmpId())
+                        .cedula(u.getCedula())
+                        .build()))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/by-empid/{empid}")
+    public ResponseEntity<UsuarioResponse> getByEmpId(@PathVariable String empid) {
+        Long empresaId = currentEmpresaId();
+        return usuarioRepository.findByEmpIdAndEmpresaId(empid, empresaId)
+                .map(u -> ResponseEntity.ok(UsuarioResponse.builder()
+                        .id(u.getId())
+                        .username(u.getUsername())
+                        .nombreCompleto(u.getNombreCompleto())
+                        .email(u.getEmail())
+                        .empId(u.getEmpId())
+                        .cedula(u.getCedula())
                         .build()))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }

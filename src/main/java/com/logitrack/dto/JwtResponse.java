@@ -10,4 +10,6 @@ public class JwtResponse {
     private String username;
     private String rol;
     private Long id;
+    private String empId;
+    private String nombreCompleto;
 }

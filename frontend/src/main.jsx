@@ -102,6 +102,11 @@ function Sidebar({ route, setRoute }) {
     { key: "productos", label: t('productos'), icon: "box" },
     { key: "movimientos", label: t('movimientos'), icon: "arrows-left-right" },
     { key: "inventario", label: t('inventario'), icon: "clipboard-list" },
+    { key: "proveedores", label: "Proveedores", icon: "building" },
+    { key: "ordenes", label: "Órdenes", icon: "file-invoice" },
+    { key: "lotes", label: "Lotes", icon: "barcode" },
+    { key: "devoluciones", label: "Devoluciones", icon: "rotate-left" },
+    { key: "notificaciones", label: "Alertas", icon: "bell" },
     { key: "reportes", label: t('reportes'), icon: "file-lines" },
     { key: "auditoria", label: t('auditoria'), icon: "list-check" },
     ...(user?.rol === 'ADMIN' ? [{ key: "usuarios", label: "Usuarios", icon: "user-plus" }] : [])
@@ -150,14 +155,30 @@ function Dashboard() {
   const ultimos = useFetch((signal) => api("/reportes/movimientos/ultimos", { signal }), []);
   const bodegas = useFetch((signal) => api("/bodegas", { signal }), []);
   const productos = useFetch((signal) => api("/productos", { signal }), []);
+
+  const refreshAll = () => {
+    resumen.reload();
+    ultimos.reload();
+    bodegas.reload();
+    productos.reload();
+  };
+
   return (
     <div>
-      <Header title={t('dashboard')} right={<span className="status">{t('actualizado')}</span>} />
+      <Header title={t('dashboard')} right={<>
+        <span className="status">{t('actualizado')}</span>
+        <button className="btn" onClick={refreshAll}><Icon name="rotate" /> Actualizar todo</button>
+      </>} />
       <div className="cards">
         <div className="card"><div className="label">{t('bodegas')}</div><div className="value">{bodegas.loading ? <div className="spinner-small"></div> : (Array.isArray(bodegas.data) ? bodegas.data.length : '—')}</div></div>
-        <div className="card"><div className="label">{t('productos')}</div><div className="value">{productos.loading ? <div className="spinner-small"></div> : (Array.isArray(productos.data) ? productos.data.length : '—')}</div></div>
-        <div className="card"><div className="label">{t('stock_bajo')}</div><div className="value">{Array.isArray(resumen.data && resumen.data.stockBajo) ? resumen.data.stockBajo.length : '—'}</div></div>
-        <div className="card"><div className="label">{t('ultimos_mov')}</div><div className="value">{Array.isArray(ultimos.data) ? ultimos.data.length : '—'}</div></div>
+        <div className="card"><div className="label">{t('productos')}</div><div className="value">{productos.loading ? <div className="spinner-small"></div> : (() => {
+          if (Array.isArray(productos.data)) return productos.data.length;
+          if (productos.data && typeof productos.data.totalElements === 'number') return productos.data.totalElements;
+          if (productos.data && Array.isArray(productos.data.content)) return productos.data.content.length;
+          return '—';
+        })()}</div></div>
+        <div className="card"><div className="label">{t('stock_bajo')}</div><div className="value">{(!resumen.loading && resumen.data && Array.isArray(resumen.data.stockBajo)) ? resumen.data.stockBajo.length : (resumen.loading ? <div className="spinner-small"></div> : '0')}</div></div>
+        <div className="card"><div className="label">{t('ultimos_mov')}</div><div className="value">{ultimos.loading ? <div className="spinner-small"></div> : (Array.isArray(ultimos.data) ? ultimos.data.length : '0')}</div></div>
       </div>
       <div className="panel mt-16">
         <div className="panel-header"><strong>{t('ultimos_mov')}</strong>
@@ -172,15 +193,19 @@ function Dashboard() {
       </div>
       <div className="grid-2 mt-16">
         <div className="panel">
-          <div className="panel-header"><strong>{t('top_productos')}</strong></div>
+          <div className="panel-header"><strong>{t('top_productos')}</strong>
+            <button className="btn secondary" onClick={resumen.reload} disabled={resumen.loading}><Icon name="rotate" />{t('refrescar')}</button>
+          </div>
           <div className="panel-body">
             <TopProductos />
           </div>
         </div>
         <div className="panel">
-          <div className="panel-header"><strong>{t('stock_por_bodega')}</strong></div>
+          <div className="panel-header"><strong>{t('stock_por_bodega')}</strong>
+            <button className="btn secondary" onClick={resumen.reload} disabled={resumen.loading}><Icon name="rotate" />{t('refrescar')}</button>
+          </div>
           <div className="panel-body">
-            <StockPorBodega resumen={resumen.data} />
+            <StockPorBodega resumen={resumen.data} loading={resumen.loading} />
           </div>
         </div>
       </div>
@@ -243,6 +268,7 @@ function TopProductos() {
       <tbody>
         {loading && <tr><td colSpan="2">{t('cargando')}</td></tr>}
         {error && <tr><td colSpan="2">{String(error.message)} <button className="btn" onClick={reload}><Icon name="rotate" />{t('reintentar')}</button></td></tr>}
+        {!loading && !error && Array.isArray(data) && data.length === 0 && <tr><td colSpan="2" style={{textAlign:'center', opacity:0.5}}>No hay movimientos registrados</td></tr>}
         {!loading && !error && (data||[]).map((r,i)=> (
           <tr key={i}><td>{r.producto}</td><td>{r.totalMovido}</td></tr>
         ))}
@@ -251,13 +277,16 @@ function TopProductos() {
   );
 }
 
-function StockPorBodega({ resumen }) {
+function StockPorBodega({ resumen, loading: parentLoading }) {
   const data = (resumen && resumen.stockPorBodega) ? resumen.stockPorBodega : [];
+  const loading = parentLoading || !resumen;
   return (
     <table>
       <thead><tr><th>Bodega</th><th>Total productos</th><th>Valor total</th></tr></thead>
       <tbody>
-        {(data||[]).map((r,i)=> (
+        {loading && <tr><td colSpan="3">{t('cargando')}</td></tr>}
+        {!loading && data.length === 0 && <tr><td colSpan="3" style={{textAlign:'center', opacity:0.5}}>No hay bodegas con inventario</td></tr>}
+        {!loading && (data||[]).map((r,i)=> (
           <tr key={i}><td>{r.bodega}</td><td>{r.totalProductos}</td><td>${String(r.valorTotal)}</td></tr>
         ))}
       </tbody>
@@ -270,7 +299,7 @@ function BodegasView() {
   const usuarios = useFetch((signal) => api("/usuarios/non-admin", { signal }), []);
   const [nombre, setNombre] = React.useState("");
   const [ubicacion, setUbicacion] = React.useState("");
-  const [encargado, setEncargado] = React.useState("");
+  const [encargadosIds, setEncargadosIds] = React.useState([]);
   const [cedulaEncargado, setCedulaEncargado] = React.useState("");
   const [encargadoNombre, setEncargadoNombre] = React.useState("");
   const [capacidad, setCapacidad] = React.useState("");
@@ -278,25 +307,35 @@ function BodegasView() {
   const [editId, setEditId] = React.useState(null);
   const [editNombre, setEditNombre] = React.useState("");
   const [editUbicacion, setEditUbicacion] = React.useState("");
-  const [editEncargado, setEditEncargado] = React.useState("");
+  const [editEncargadosIds, setEditEncargadosIds] = React.useState([]);
   const [editCapacidad, setEditCapacidad] = React.useState("");
 
   const crear = async () => {
     try {
-      const body = { nombre, ubicacion, capacidad: (Number(capacidad) && Number(capacidad) > 0 ? Number(capacidad) : 1), encargado: (encargado ? { id: Number(encargado) } : null) };
+      const encargados = encargadosIds.map(id => ({ id: Number(id) }));
+      const body = { nombre, ubicacion, capacidad: (Number(capacidad) && Number(capacidad) > 0 ? Number(capacidad) : 1), encargados };
       await api("/bodegas", { method: "POST", body: JSON.stringify(body) });
-      setNombre(""); setUbicacion(""); setEncargado(""); setCedulaEncargado(""); setEncargadoNombre(""); setCapacidad(""); list.reload(); setStatus("Creada");
+      setNombre(""); setUbicacion(""); setEncargadosIds([]); setCedulaEncargado(""); setEncargadoNombre(""); setCapacidad(""); list.reload(); setStatus("✅ Bodega creada exitosamente");
+      setTimeout(() => setStatus(""), 3000);
     } catch (e) {
       const msg = String(e && e.message || "Error");
-      setStatus(msg.includes("403") ? "403 - Acceso restringido a ADMIN" : msg);
+      setStatus(msg.includes("403") ? "❌ 403 - Acceso restringido a ADMIN" : "❌ " + msg);
+      setTimeout(() => setStatus(""), 5000);
     }
   };
   const eliminar = async (id) => { if(!window.confirm("¿Eliminar esta bodega?")) return; await api(`/bodegas/${id}`, { method: "DELETE" }); list.reload(); };
-  const startEdit = (b) => { setEditId(b.id); setEditNombre(b.nombre||""); setEditUbicacion(b.ubicacion||""); setEditEncargado((b.encargado && b.encargado.id) ? String(b.encargado.id) : ""); setEditCapacidad(String(b.capacidad||0)); };
-  const cancelEdit = () => { setEditId(null); setEditNombre(""); setEditUbicacion(""); setEditEncargado(""); setEditCapacidad(""); };
+  const startEdit = (b) => {
+    setEditId(b.id);
+    setEditNombre(b.nombre||"");
+    setEditUbicacion(b.ubicacion||"");
+    setEditEncargadosIds(Array.isArray(b.encargados) ? b.encargados.map(e => String(e.id)) : []);
+    setEditCapacidad(String(b.capacidad||0));
+  };
+  const cancelEdit = () => { setEditId(null); setEditNombre(""); setEditUbicacion(""); setEditEncargadosIds([]); setEditCapacidad(""); };
   const guardarEdit = async () => {
     try {
-      await api(`/bodegas/${editId}`, { method: "PUT", body: JSON.stringify({ nombre: editNombre, ubicacion: editUbicacion, capacidad: (Number(editCapacidad)&&Number(editCapacidad)>0?Number(editCapacidad):1), encargado: (editEncargado ? { id: Number(editEncargado) } : null) }) });
+      const encargados = editEncargadosIds.map(id => ({ id: Number(id) }));
+      await api(`/bodegas/${editId}`, { method: "PUT", body: JSON.stringify({ nombre: editNombre, ubicacion: editUbicacion, capacidad: (Number(editCapacidad)&&Number(editCapacidad)>0?Number(editCapacidad):1), encargados }) });
       list.reload(); cancelEdit();
     } catch (e) {
       setStatus(String(e && e.message || "Error"));
@@ -313,18 +352,52 @@ function BodegasView() {
           <div className="form">
             <div className="field"><label>{t('nombre')}</label><input value={nombre} onChange={e=>setNombre(e.target.value)} /></div>
             <div className="field"><label>{t('ubicacion')}</label><input value={ubicacion} onChange={e=>setUbicacion(e.target.value)} /></div>
-            <div className="field"><label>{t('encargado')}</label>
-              <select value={encargado} onChange={e=>setEncargado(e.target.value)}>
-                <option value="">{t('seleccione')}</option>
+            <div className="field" style={{gridColumn:'1/-1'}}><label>{t('encargados')} (seleccione múltiples)</label>
+              <div style={{display:'flex', gap:'8px', flexWrap:'wrap'}}>
                 {Array.isArray(usuarios.data) && usuarios.data.map(u => (
-                  <option key={u.id} value={u.id}>{u.nombreCompleto}</option>
+                  <label key={u.id} style={{display:'flex', alignItems:'center', gap:'4px', padding:'4px 8px', border:'1px solid rgba(56, 248, 182, 0.25)', borderRadius:'4px', cursor:'pointer'}}>
+                    <input type="checkbox" checked={encargadosIds.includes(String(u.id))} onChange={e => {
+                      if (e.target.checked) {
+                        setEncargadosIds([...encargadosIds, String(u.id)]);
+                      } else {
+                        setEncargadosIds(encargadosIds.filter(id => id !== String(u.id)));
+                      }
+                    }} />
+                    <span>{u.nombreCompleto}</span>
+                    {u.empId && <span style={{fontSize:'11px', opacity:0.7}}>({u.empId})</span>}
+                  </label>
                 ))}
-              </select>
+              </div>
             </div>
-            <div className="field"><label>Cédula</label>
+            <div className="field"><label>Buscar encargado por cédula o ID empleado</label>
               <div style={{display:'flex', gap:'8px'}}>
-                <input value={cedulaEncargado} onChange={e=>setCedulaEncargado(e.target.value)} placeholder="Cédula del encargado" />
-                <button className="btn" onClick={async ()=>{ try { const u = await api(`/usuarios/by-cedula/${encodeURIComponent(cedulaEncargado)}`); if (u && u.id) { setEncargado(String(u.id)); setEncargadoNombre(u.nombreCompleto||''); } } catch(_){} }}><Icon name="magnifying-glass" />Buscar</button>
+                <input value={cedulaEncargado} onChange={e=>setCedulaEncargado(e.target.value)} placeholder="Cédula o ID de empleado" />
+                <button className="btn" onClick={async ()=>{
+                  try {
+                    let u = null;
+                    // Intentar buscar por cédula primero
+                    try {
+                      u = await api(`/usuarios/by-cedula/${encodeURIComponent(cedulaEncargado)}`);
+                    } catch (_) {
+                      // Si falla, intentar por empId
+                      try {
+                        u = await api(`/usuarios/by-empid/${encodeURIComponent(cedulaEncargado)}`);
+                      } catch (_) {}
+                    }
+                    if (u && u.id) {
+                      if (!encargadosIds.includes(String(u.id))) {
+                        setEncargadosIds([...encargadosIds, String(u.id)]);
+                      }
+                      setEncargadoNombre(`${u.nombreCompleto}${u.empId ? ' (' + u.empId + ')' : ''}`);
+                    } else {
+                      setEncargadoNombre('❌ No encontrado');
+                      setTimeout(() => setEncargadoNombre(''), 3000);
+                    }
+                  } catch(_){
+                    setEncargadoNombre('❌ No encontrado');
+                    setTimeout(() => setEncargadoNombre(''), 3000);
+                  }
+                }}><Icon name="magnifying-glass" />Buscar y agregar</button>
               </div>
               {encargadoNombre && <div className="status">{encargadoNombre}</div>}
             </div>
@@ -343,7 +416,7 @@ function BodegasView() {
               return arr.length===0;
             })() && <EmptyState/>}
             <table>
-              <thead><tr><th>ID</th><th>{t('nombre')}</th><th>{t('ubicacion')}</th><th>{t('encargado')}</th><th>{t('capacidad')}</th><th></th></tr></thead>
+              <thead><tr><th>ID</th><th>{t('nombre')}</th><th>{t('ubicacion')}</th><th>{t('encargados')}</th><th>{t('capacidad')}</th><th></th></tr></thead>
               <tbody>
                 {(Array.isArray(list.data) ? list.data : (list.data && Array.isArray(list.data.content) ? list.data.content : [])).map(b => (
                   <tr key={b.id}>
@@ -351,13 +424,21 @@ function BodegasView() {
                     <td>{editId===b.id ? (<input value={editNombre} onChange={e=>setEditNombre(e.target.value)} />) : b.nombre}</td>
                     <td>{editId===b.id ? (<input value={editUbicacion} onChange={e=>setEditUbicacion(e.target.value)} />) : (b.ubicacion||'')}</td>
                     <td>{editId===b.id ? (
-                      <select value={editEncargado} onChange={e=>setEditEncargado(e.target.value)}>
-                        <option value="">{t('seleccione')}</option>
+                      <div style={{display:'flex', gap:'4px', flexWrap:'wrap'}}>
                         {Array.isArray(usuarios.data) && usuarios.data.map(u => (
-                          <option key={u.id} value={u.id}>{u.nombreCompleto}</option>
+                          <label key={u.id} style={{display:'flex', alignItems:'center', gap:'2px', fontSize:'12px'}}>
+                            <input type="checkbox" checked={editEncargadosIds.includes(String(u.id))} onChange={e => {
+                              if (e.target.checked) {
+                                setEditEncargadosIds([...editEncargadosIds, String(u.id)]);
+                              } else {
+                                setEditEncargadosIds(editEncargadosIds.filter(id => id !== String(u.id)));
+                              }
+                            }} />
+                            {u.nombreCompleto} {u.empId && `(${u.empId})`}
+                          </label>
                         ))}
-                      </select>
-                    ) : ((b.encargado && b.encargado.nombreCompleto) ? b.encargado.nombreCompleto : '')}</td>
+                      </div>
+                    ) : (Array.isArray(b.encargados) && b.encargados.length > 0 ? b.encargados.map(e => `${e.nombreCompleto}${e.empId ? ' (' + e.empId + ')' : ''}`).join(', ') : '—')}</td>
                     <td>{editId===b.id ? (<input type="number" value={editCapacidad} onChange={e=>setEditCapacidad(e.target.value)} />) : b.capacidad}</td>
                     <td>{editId===b.id ? (<>
                       <button className="btn" onClick={guardarEdit}><Icon name="check" />{t('guardar')}</button>
@@ -407,9 +488,15 @@ function ProductosView() {
   const [editStock, setEditStock] = React.useState("");
 
   const crear = async () => {
-    const cat = (nuevaCategoria && nuevaCategoria.trim()) ? nuevaCategoria.trim() : categoria;
-    await api("/productos", { method: "POST", body: JSON.stringify({ nombre, categoria: cat, precio: Number(precio)||0, stock: Number(stock)||0 }) });
-    setNombre(""); setCategoria(""); setPrecio(""); setStock(""); list.reload(); categorias.reload(); setStatus("Creado");
+    try {
+      const cat = (nuevaCategoria && nuevaCategoria.trim()) ? nuevaCategoria.trim() : categoria;
+      await api("/productos", { method: "POST", body: JSON.stringify({ nombre, categoria: cat, precio: Number(precio)||0, stock: Number(stock)||0 }) });
+      setNombre(""); setCategoria(""); setNuevaCategoria(""); setPrecio(""); setStock(""); list.reload(); categorias.reload(); setStatus("✅ Producto creado exitosamente");
+      setTimeout(() => setStatus(""), 3000);
+    } catch (e) {
+      setStatus("❌ " + String(e && e.message || "Error al crear producto"));
+      setTimeout(() => setStatus(""), 5000);
+    }
   };
   const eliminar = async (id) => { if(!window.confirm("¿Eliminar este producto?")) return; await api(`/productos/${id}`, { method: "DELETE" }); list.reload(); };
   const startEdit = (p) => { setEditId(p.id); setEditNombre(p.nombre||""); setEditCategoria(p.categoria||""); setEditPrecio(String(p.precio||0)); setEditStock(String(p.stock||0)); };
@@ -445,7 +532,14 @@ function ProductosView() {
           <div className="panel-body">
             {list.loading && <Loading/>}
             {list.error && <ErrorState error={list.error} onRetry={list.reload} />}
-            {!list.loading && !list.error && (!Array.isArray(list.data) || list.data.length===0) && <EmptyState/>}
+            {!list.loading && !list.error && (() => {
+              const base = Array.isArray(list.data) ? list.data : (list.data && Array.isArray(list.data.content) ? list.data.content : []);
+              return base.length === 0;
+            })() && <EmptyState/>}
+            {!list.loading && !list.error && (() => {
+              const base = Array.isArray(list.data) ? list.data : (list.data && Array.isArray(list.data.content) ? list.data.content : []);
+              return base.length > 0;
+            })() && (
             <table>
               <thead><tr><th>ID</th><th>{t('nombre')}</th><th>{t('categoria')}</th><th>{t('precio')}</th><th>{t('stock')}</th><th></th></tr></thead>
               <tbody>
@@ -478,6 +572,7 @@ function ProductosView() {
                 })()}
               </tbody>
             </table>
+            )}
             <div className="toolbar" style={{justifyContent:'flex-end', marginTop:8}}>
               <button className="btn secondary" onClick={()=>setPage(Math.max(0, page-1))}>{t('prev')}</button>
               <span className="status">{t('pagina')} {page+1}</span>
@@ -845,11 +940,11 @@ function MovimientosView() {
 
   const crear = async () => {
     setFormError("");
-    if (!tipo) { setFormError(t('error_tipo')); return; }
-    if ((tipo === 'SALIDA' || tipo === 'TRANSFERENCIA') && !bodegaOrigenId) { setFormError(t('error_origen')); return; }
-    if ((tipo === 'ENTRADA' || tipo === 'TRANSFERENCIA') && !bodegaDestinoId) { setFormError(t('error_destino')); return; }
-    if (!detalles.length) { setFormError(t('error_detalles')); return; }
-    if (detalles.some(d => !d.productoId || !d.cantidad || d.cantidad <= 0)) { setFormError(t('error_cantidad')); return; }
+    if (!tipo) { setFormError("❌ " + t('error_tipo')); return; }
+    if ((tipo === 'SALIDA' || tipo === 'TRANSFERENCIA') && !bodegaOrigenId) { setFormError("❌ Debe seleccionar una bodega de origen"); return; }
+    if ((tipo === 'ENTRADA' || tipo === 'TRANSFERENCIA') && !bodegaDestinoId) { setFormError("❌ Debe seleccionar una bodega de destino"); return; }
+    if (!detalles.length) { setFormError("❌ Debe agregar al menos un producto"); return; }
+    if (detalles.some(d => !d.productoId || !d.cantidad || d.cantidad <= 0)) { setFormError("❌ Todos los productos deben tener cantidad válida"); return; }
     const body = { tipo, usuarioId, detalles, observaciones };
     if (tipo === 'SALIDA') body.bodegaOrigenId = Number(bodegaOrigenId);
     if (tipo === 'ENTRADA') body.bodegaDestinoId = Number(bodegaDestinoId);
@@ -857,9 +952,11 @@ function MovimientosView() {
     try {
       setSubmitting(true);
       await api("/movimientos", { method: "POST", body: JSON.stringify(body) });
-      setDetalles([]); setObservaciones(""); movimientos.reload();
+      setDetalles([]); setObservaciones(""); setBodegaOrigenId(""); setBodegaDestinoId(""); movimientos.reload();
+      setFormError("✅ Movimiento registrado exitosamente");
+      setTimeout(() => setFormError(""), 3000);
     } catch (e) {
-      setFormError(String(e.message));
+      setFormError("❌ " + String(e.message));
     } finally {
       setSubmitting(false);
     }
@@ -1063,6 +1160,7 @@ function Register({ onSuccess, onLoginClick, submitPath = "/auth/register", defa
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [cedula, setCedula] = React.useState("");
+  const [empId, setEmpId] = React.useState("");
   const [rol, setRol] = React.useState(defaultRol);
   const [error, setError] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -1108,11 +1206,21 @@ function Register({ onSuccess, onLoginClick, submitPath = "/auth/register", defa
       }
       const response = await api(submitPath, {
         method: "POST",
-        body: JSON.stringify({ username, nombreCompleto, email, password, rol, cedula })
+        body: JSON.stringify({ username, nombreCompleto, email, password, rol, cedula, empId })
       });
 
       if (response) {
-        onLoginClick();
+        setError("");
+        alert("✅ Usuario creado exitosamente");
+        setUsername(""); setNombreCompleto(""); setEmail(""); setPassword(""); setCedula(""); setEmpId(""); setRol(defaultRol);
+        if (submitPath === "/auth/register") {
+          // Si es desde el panel de admin, no redirigir
+          setTimeout(() => {
+            setUsername(""); setNombreCompleto(""); setEmail(""); setPassword(""); setCedula(""); setEmpId(""); setRol(defaultRol);
+          }, 100);
+        } else {
+          onLoginClick();
+        }
       }
     } catch (err) {
       setError(err.message || "Error al registrarse");
@@ -1160,6 +1268,16 @@ function Register({ onSuccess, onLoginClick, submitPath = "/auth/register", defa
               onChange={(e) => setCedula(e.target.value)}
               placeholder="Documento de identidad"
               required
+            />
+          </div>
+
+          <div className="auth-field">
+            <label>ID de Empleado (opcional)</label>
+            <input
+              type="text"
+              value={empId}
+              onChange={(e) => setEmpId(e.target.value)}
+              placeholder="Código de empleado"
             />
           </div>
 
@@ -1213,6 +1331,892 @@ function Register({ onSuccess, onLoginClick, submitPath = "/auth/register", defa
   );
 }
 
+// ========================================
+// NUEVOS MÓDULOS
+// ========================================
+
+function ProveedoresView() {
+  const list = useFetch((signal) => api("/proveedores", { signal }), []);
+  const [nombre, setNombre] = React.useState("");
+  const [contacto, setContacto] = React.useState("");
+  const [telefono, setTelefono] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [direccion, setDireccion] = React.useState("");
+  const [activo, setActivo] = React.useState(true);
+  const [status, setStatus] = React.useState("");
+  const [editId, setEditId] = React.useState(null);
+
+  const crear = async () => {
+    try {
+      await api("/proveedores", {
+        method: "POST",
+        body: JSON.stringify({ nombre, contacto, telefono, email, direccion, activo })
+      });
+      setNombre(""); setContacto(""); setTelefono(""); setEmail(""); setDireccion("");
+      list.reload();
+      setStatus("✅ Proveedor creado exitosamente");
+      setTimeout(() => setStatus(""), 3000);
+    } catch (e) {
+      setStatus("❌ " + String(e.message));
+      setTimeout(() => setStatus(""), 5000);
+    }
+  };
+
+  const eliminar = async (id) => {
+    if (!window.confirm("¿Eliminar este proveedor?")) return;
+    await api(`/proveedores/${id}`, { method: "DELETE" });
+    list.reload();
+  };
+
+  return (
+    <div>
+      <Header title="Proveedores" right={<><span className="status muted">{status}</span><button className="btn" onClick={list.reload}><Icon name="rotate" />Refrescar</button></>} />
+      <div className="panel">
+        <div className="panel-header"><strong>Crear Proveedor</strong></div>
+        <div className="panel-body">
+          <div className="form">
+            <div className="field"><label>Nombre*</label><input value={nombre} onChange={e=>setNombre(e.target.value)} /></div>
+            <div className="field"><label>Contacto</label><input value={contacto} onChange={e=>setContacto(e.target.value)} /></div>
+            <div className="field"><label>Teléfono</label><input value={telefono} onChange={e=>setTelefono(e.target.value)} /></div>
+            <div className="field"><label>Email</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} /></div>
+            <div className="field" style={{gridColumn:'1/-1'}}><label>Dirección</label><input value={direccion} onChange={e=>setDireccion(e.target.value)} /></div>
+            <div className="field"><label style={{display:'flex', alignItems:'center', gap:'8px'}}><input type="checkbox" checked={activo} onChange={e=>setActivo(e.target.checked)} />Activo</label></div>
+            <div className="actions"><button className="btn" onClick={crear}><Icon name="plus" />Crear</button></div>
+          </div>
+        </div>
+      </div>
+      <div className="panel mt-8">
+        <div className="panel-header"><strong>Listado de Proveedores</strong></div>
+        <div className="panel-body">
+          {list.loading && <Loading/>}
+          {list.error && <ErrorState error={list.error} onRetry={list.reload} />}
+          {!list.loading && !list.error && (Array.isArray(list.data) && list.data.length === 0) && <EmptyState/>}
+          {!list.loading && !list.error && Array.isArray(list.data) && list.data.length > 0 && (
+            <table>
+              <thead><tr><th>ID</th><th>Nombre</th><th>Contacto</th><th>Teléfono</th><th>Email</th><th>Estado</th><th></th></tr></thead>
+              <tbody>
+                {list.data.map(p => (
+                  <tr key={p.id}>
+                    <td>{p.id}</td>
+                    <td>{p.nombre}</td>
+                    <td>{p.contacto || '—'}</td>
+                    <td>{p.telefono || '—'}</td>
+                    <td>{p.email || '—'}</td>
+                    <td>{p.activo ? '✅ Activo' : '❌ Inactivo'}</td>
+                    <td>
+                      <button className="btn danger" onClick={()=>eliminar(p.id)}><Icon name="trash" />Eliminar</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OrdenesCompraView() {
+  const list = useFetch((signal) => api("/ordenes-compra", { signal }), []);
+  const proveedores = useFetch((signal) => api("/proveedores/activos", { signal }), []);
+  const bodegas = useFetch((signal) => api("/bodegas", { signal }), []);
+  const productos = useFetch((signal) => api("/productos", { signal }), []);
+
+  const [numeroOrden, setNumeroOrden] = React.useState("");
+  const [proveedorId, setProveedorId] = React.useState("");
+  const [bodegaDestinoId, setBodegaDestinoId] = React.useState("");
+  const [fechaEntregaEstimada, setFechaEntregaEstimada] = React.useState("");
+  const [observaciones, setObservaciones] = React.useState("");
+  const [detalles, setDetalles] = React.useState([]);
+  const [status, setStatus] = React.useState("");
+  const [verDetalle, setVerDetalle] = React.useState(null);
+
+  const agregarDetalle = () => {
+    setDetalles([...detalles, { productoId: "", cantidad: 1, precioUnitario: 0 }]);
+  };
+
+  const actualizarDetalle = (index, field, value) => {
+    const nuevos = [...detalles];
+    nuevos[index][field] = value;
+    setDetalles(nuevos);
+  };
+
+  const eliminarDetalle = (index) => {
+    setDetalles(detalles.filter((_, i) => i !== index));
+  };
+
+  const crear = async () => {
+    try {
+      if (!proveedorId || !bodegaDestinoId || detalles.length === 0) {
+        setStatus("❌ Complete todos los campos requeridos y agregue al menos un producto");
+        return;
+      }
+
+      const detallesParaEnviar = detalles.map(d => ({
+        producto: { id: parseInt(d.productoId) },
+        cantidad: parseInt(d.cantidad),
+        precioUnitario: parseFloat(d.precioUnitario)
+      }));
+
+      await api("/ordenes-compra", {
+        method: "POST",
+        body: JSON.stringify({
+          numeroOrden: numeroOrden || undefined,
+          proveedor: { id: parseInt(proveedorId) },
+          bodegaDestino: { id: parseInt(bodegaDestinoId) },
+          fechaEntregaEstimada: fechaEntregaEstimada || undefined,
+          observaciones,
+          detalles: detallesParaEnviar
+        })
+      });
+
+      setNumeroOrden(""); setProveedorId(""); setBodegaDestinoId("");
+      setFechaEntregaEstimada(""); setObservaciones(""); setDetalles([]);
+      list.reload();
+      setStatus("✅ Orden de compra creada exitosamente");
+      setTimeout(() => setStatus(""), 3000);
+    } catch (e) {
+      setStatus("❌ " + String(e.message));
+    }
+  };
+
+  const recibirOrden = async (id) => {
+    try {
+      await api(`/ordenes-compra/${id}/recibir`, { method: "POST" });
+      list.reload();
+      setStatus("✅ Orden recibida e inventario actualizado");
+      setTimeout(() => setStatus(""), 3000);
+    } catch (e) {
+      setStatus("❌ " + String(e.message));
+    }
+  };
+
+  const calcularTotal = () => {
+    return detalles.reduce((sum, d) => sum + (parseFloat(d.precioUnitario || 0) * parseInt(d.cantidad || 0)), 0);
+  };
+
+  return (
+    <div>
+      <Header title="Órdenes de Compra" right={<><span className="status">{status}</span><button className="btn" onClick={list.reload}><Icon name="rotate" />Refrescar</button></>} />
+
+      <div className="panel">
+        <div className="panel-header"><strong>Registrar Orden de Compra</strong></div>
+        <div className="panel-body">
+          <div className="form">
+            <div className="field"><label>Número de Orden (opcional)</label><input value={numeroOrden} onChange={e=>setNumeroOrden(e.target.value)} placeholder="Se genera automáticamente" /></div>
+            <div className="field">
+              <label>Proveedor*</label>
+              <select value={proveedorId} onChange={e=>setProveedorId(e.target.value)}>
+                <option value="">Seleccione...</option>
+                {Array.isArray(proveedores.data) && proveedores.data.map(p => (
+                  <option key={p.id} value={p.id}>{p.nombre}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label>Bodega Destino*</label>
+              <select value={bodegaDestinoId} onChange={e=>setBodegaDestinoId(e.target.value)}>
+                <option value="">Seleccione...</option>
+                {Array.isArray(bodegas.data) && bodegas.data.map(b => (
+                  <option key={b.id} value={b.id}>{b.nombre}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field"><label>Fecha Entrega Estimada</label><input type="date" value={fechaEntregaEstimada} onChange={e=>setFechaEntregaEstimada(e.target.value)} /></div>
+            <div className="field"><label>Observaciones</label><textarea value={observaciones} onChange={e=>setObservaciones(e.target.value)} rows="2" /></div>
+
+            <div style={{marginTop:'20px', padding:'15px', backgroundColor:'#f8f9fa', borderRadius:'4px'}}>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px'}}>
+                <strong>Detalles de Productos</strong>
+                <button className="btn btn-sm" onClick={agregarDetalle}><Icon name="plus" />Agregar Producto</button>
+              </div>
+              {detalles.map((det, idx) => (
+                <div key={idx} style={{display:'flex', gap:'10px', marginBottom:'10px', alignItems:'center'}}>
+                  <select value={det.productoId} onChange={e=>actualizarDetalle(idx, 'productoId', e.target.value)} style={{flex:2}}>
+                    <option value="">Seleccione producto...</option>
+                    {Array.isArray(productos.data?.content || productos.data) && (productos.data?.content || productos.data).map(p => (
+                      <option key={p.id} value={p.id}>{p.nombre}</option>
+                    ))}
+                  </select>
+                  <input type="number" placeholder="Cantidad" value={det.cantidad} onChange={e=>actualizarDetalle(idx, 'cantidad', e.target.value)} style={{width:'100px'}} min="1" />
+                  <input type="number" placeholder="Precio Unit." value={det.precioUnitario} onChange={e=>actualizarDetalle(idx, 'precioUnitario', e.target.value)} style={{width:'120px'}} step="0.01" min="0" />
+                  <button className="btn btn-sm" onClick={()=>eliminarDetalle(idx)} style={{backgroundColor:'#dc3545', color:'white'}}><Icon name="trash" /></button>
+                </div>
+              ))}
+              {detalles.length > 0 && (
+                <div style={{marginTop:'15px', paddingTop:'15px', borderTop:'1px solid #dee2e6', textAlign:'right'}}>
+                  <strong>Total: ${calcularTotal().toFixed(2)}</strong>
+                </div>
+              )}
+            </div>
+
+            <div className="actions"><button className="btn" onClick={crear}><Icon name="plus" />Crear Orden</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="panel mt-8">
+        <div className="panel-header"><strong>Listado de Órdenes de Compra</strong></div>
+        <div className="panel-body">
+          {list.loading && <Loading/>}
+          {list.error && <ErrorState error={list.error} onRetry={list.reload} />}
+          {!list.loading && !list.error && Array.isArray(list.data) && list.data.length > 0 && (
+            <table>
+              <thead>
+                <tr><th>Número</th><th>Proveedor</th><th>Bodega</th><th>Total</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr>
+              </thead>
+              <tbody>
+                {list.data.map(o => (
+                  <tr key={o.id}>
+                    <td>{o.numeroOrden}</td>
+                    <td>{o.proveedor?.nombre || '—'}</td>
+                    <td>{o.bodegaDestino?.nombre || '—'}</td>
+                    <td>${o.total?.toFixed(2) || '0.00'}</td>
+                    <td><span className={`badge ${o.estado === 'RECIBIDA' ? 'badge-success' : o.estado === 'CANCELADA' ? 'badge-danger' : 'badge-warning'}`}>{o.estado}</span></td>
+                    <td>{new Date(o.fechaOrden).toLocaleDateString()}</td>
+                    <td>
+                      <button className="btn btn-sm" onClick={()=>setVerDetalle(o)}><Icon name="eye" /></button>
+                      {o.estado !== 'RECIBIDA' && o.estado !== 'CANCELADA' && (
+                        <button className="btn btn-sm" onClick={()=>recibirOrden(o.id)} style={{marginLeft:'5px', backgroundColor:'#28a745', color:'white'}}>Recibir</button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {!list.loading && !list.error && Array.isArray(list.data) && list.data.length === 0 && (
+            <p style={{textAlign:'center', padding:'20px', color:'#6c757d'}}>No hay órdenes de compra registradas</p>
+          )}
+        </div>
+      </div>
+
+      {verDetalle && (
+        <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, backgroundColor:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000}} onClick={()=>setVerDetalle(null)}>
+          <div style={{backgroundColor:'white', borderRadius:'8px', padding:'24px', maxWidth:'600px', width:'90%', maxHeight:'80vh', overflow:'auto'}} onClick={e=>e.stopPropagation()}>
+            <h3>Detalle de Orden {verDetalle.numeroOrden}</h3>
+            <div style={{marginTop:'15px'}}>
+              <p><strong>Proveedor:</strong> {verDetalle.proveedor?.nombre}</p>
+              <p><strong>Bodega Destino:</strong> {verDetalle.bodegaDestino?.nombre}</p>
+              <p><strong>Estado:</strong> <span className={`badge ${verDetalle.estado === 'RECIBIDA' ? 'badge-success' : 'badge-warning'}`}>{verDetalle.estado}</span></p>
+              <p><strong>Fecha Orden:</strong> {new Date(verDetalle.fechaOrden).toLocaleString()}</p>
+              {verDetalle.fechaEntregaEstimada && <p><strong>Entrega Estimada:</strong> {new Date(verDetalle.fechaEntregaEstimada).toLocaleDateString()}</p>}
+              {verDetalle.fechaRecepcion && <p><strong>Fecha Recepción:</strong> {new Date(verDetalle.fechaRecepcion).toLocaleDateString()}</p>}
+              {verDetalle.observaciones && <p><strong>Observaciones:</strong> {verDetalle.observaciones}</p>}
+
+              <h4 style={{marginTop:'20px', marginBottom:'10px'}}>Productos:</h4>
+              <table style={{width:'100%'}}>
+                <thead><tr><th>Producto</th><th>Cantidad</th><th>Precio Unit.</th><th>Subtotal</th></tr></thead>
+                <tbody>
+                  {verDetalle.detalles && verDetalle.detalles.map((d, idx) => (
+                    <tr key={idx}>
+                      <td>{d.producto?.nombre}</td>
+                      <td>{d.cantidad}</td>
+                      <td>${d.precioUnitario?.toFixed(2)}</td>
+                      <td>${(d.cantidad * d.precioUnitario).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot><tr><td colSpan="3" style={{textAlign:'right'}}><strong>Total:</strong></td><td><strong>${verDetalle.total?.toFixed(2)}</strong></td></tr></tfoot>
+              </table>
+            </div>
+            <button className="btn" onClick={()=>setVerDetalle(null)} style={{marginTop:'20px'}}>Cerrar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LotesView() {
+  const list = useFetch((signal) => api("/lotes", { signal }), []);
+  const productos = useFetch((signal) => api("/productos", { signal }), []);
+  const bodegas = useFetch((signal) => api("/bodegas", { signal }), []);
+  const proveedores = useFetch((signal) => api("/proveedores/activos", { signal }), []);
+
+  const [numeroLote, setNumeroLote] = React.useState("");
+  const [productoId, setProductoId] = React.useState("");
+  const [bodegaId, setBodegaId] = React.useState("");
+  const [proveedorId, setProveedorId] = React.useState("");
+  const [cantidad, setCantidad] = React.useState("");
+  const [fechaFabricacion, setFechaFabricacion] = React.useState("");
+  const [fechaVencimiento, setFechaVencimiento] = React.useState("");
+  const [status, setStatus] = React.useState("");
+  const [filtro, setFiltro] = React.useState("todos");
+
+  const crear = async () => {
+    try {
+      if (!numeroLote || !productoId || !bodegaId || !cantidad) {
+        setStatus("❌ Complete todos los campos requeridos");
+        return;
+      }
+
+      await api("/lotes", {
+        method: "POST",
+        body: JSON.stringify({
+          numeroLote,
+          producto: { id: parseInt(productoId) },
+          bodega: { id: parseInt(bodegaId) },
+          proveedor: proveedorId ? { id: parseInt(proveedorId) } : null,
+          cantidad: parseInt(cantidad),
+          fechaFabricacion: fechaFabricacion || null,
+          fechaVencimiento: fechaVencimiento || null
+        })
+      });
+
+      setNumeroLote(""); setProductoId(""); setBodegaId(""); setProveedorId("");
+      setCantidad(""); setFechaFabricacion(""); setFechaVencimiento("");
+      list.reload();
+      setStatus("✅ Lote creado exitosamente");
+      setTimeout(() => setStatus(""), 3000);
+    } catch (e) {
+      setStatus("❌ " + String(e.message));
+    }
+  };
+
+  const cargarVencidos = async () => {
+    try {
+      const data = await api("/lotes/vencidos");
+      list.setData(data);
+      setFiltro("vencidos");
+    } catch (e) {
+      setStatus("❌ " + String(e.message));
+    }
+  };
+
+  const cargarProximosVencer = async () => {
+    try {
+      const data = await api("/lotes/proximos-vencer?dias=30");
+      list.setData(data);
+      setFiltro("proximos");
+    } catch (e) {
+      setStatus("❌ " + String(e.message));
+    }
+  };
+
+  const cargarTodos = () => {
+    setFiltro("todos");
+    list.reload();
+  };
+
+  const lotesAMostrar = Array.isArray(list.data) ? list.data : [];
+
+  return (
+    <div>
+      <Header title="Lotes" right={<><span className="status">{status}</span><button className="btn" onClick={list.reload}><Icon name="rotate" />Refrescar</button></>} />
+
+      <div className="panel">
+        <div className="panel-header"><strong>Registrar Lote</strong></div>
+        <div className="panel-body">
+          <div className="form">
+            <div className="field"><label>Número de Lote*</label><input value={numeroLote} onChange={e=>setNumeroLote(e.target.value)} placeholder="Ej: LOTE-001" /></div>
+            <div className="field">
+              <label>Producto*</label>
+              <select value={productoId} onChange={e=>setProductoId(e.target.value)}>
+                <option value="">Seleccione...</option>
+                {Array.isArray(productos.data?.content || productos.data) && (productos.data?.content || productos.data).map(p => (
+                  <option key={p.id} value={p.id}>{p.nombre}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label>Bodega*</label>
+              <select value={bodegaId} onChange={e=>setBodegaId(e.target.value)}>
+                <option value="">Seleccione...</option>
+                {Array.isArray(bodegas.data) && bodegas.data.map(b => (
+                  <option key={b.id} value={b.id}>{b.nombre}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label>Proveedor (opcional)</label>
+              <select value={proveedorId} onChange={e=>setProveedorId(e.target.value)}>
+                <option value="">Seleccione...</option>
+                {Array.isArray(proveedores.data) && proveedores.data.map(p => (
+                  <option key={p.id} value={p.id}>{p.nombre}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field"><label>Cantidad*</label><input type="number" value={cantidad} onChange={e=>setCantidad(e.target.value)} min="1" /></div>
+            <div className="field"><label>Fecha Fabricación</label><input type="date" value={fechaFabricacion} onChange={e=>setFechaFabricacion(e.target.value)} /></div>
+            <div className="field"><label>Fecha Vencimiento</label><input type="date" value={fechaVencimiento} onChange={e=>setFechaVencimiento(e.target.value)} /></div>
+            <div className="actions"><button className="btn" onClick={crear}><Icon name="plus" />Crear Lote</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="panel mt-8">
+        <div className="panel-header">
+          <strong>Listado de Lotes</strong>
+          <div style={{marginLeft:'auto', display:'flex', gap:'10px'}}>
+            <button className={`btn btn-sm ${filtro === 'todos' ? 'btn-primary' : ''}`} onClick={cargarTodos}>Todos</button>
+            <button className={`btn btn-sm ${filtro === 'vencidos' ? 'btn-primary' : ''}`} onClick={cargarVencidos}>Vencidos</button>
+            <button className={`btn btn-sm ${filtro === 'proximos' ? 'btn-primary' : ''}`} onClick={cargarProximosVencer}>Próximos a Vencer</button>
+          </div>
+        </div>
+        <div className="panel-body">
+          {list.loading && <Loading/>}
+          {list.error && <ErrorState error={list.error} onRetry={list.reload} />}
+          {!list.loading && !list.error && lotesAMostrar.length > 0 && (
+            <table>
+              <thead>
+                <tr><th>Número</th><th>Producto</th><th>Bodega</th><th>Proveedor</th><th>Cantidad</th><th>Fabricación</th><th>Vencimiento</th><th>Estado</th></tr>
+              </thead>
+              <tbody>
+                {lotesAMostrar.map(l => {
+                  const hoy = new Date();
+                  const vencimiento = l.fechaVencimiento ? new Date(l.fechaVencimiento) : null;
+                  const estaVencido = vencimiento && vencimiento < hoy;
+                  const proximoVencer = vencimiento && !estaVencido && (vencimiento - hoy) / (1000 * 60 * 60 * 24) <= 30;
+
+                  return (
+                    <tr key={l.id} style={estaVencido ? {backgroundColor:'#ffe0e0'} : proximoVencer ? {backgroundColor:'#fff9e0'} : {}}>
+                      <td>{l.numeroLote}</td>
+                      <td>{l.producto?.nombre || '—'}</td>
+                      <td>{l.bodega?.nombre || '—'}</td>
+                      <td>{l.proveedor?.nombre || '—'}</td>
+                      <td>{l.cantidad}</td>
+                      <td>{l.fechaFabricacion ? new Date(l.fechaFabricacion).toLocaleDateString() : '—'}</td>
+                      <td>{l.fechaVencimiento ? new Date(l.fechaVencimiento).toLocaleDateString() : '—'}</td>
+                      <td>
+                        {estaVencido ? <span style={{color:'#dc3545', fontWeight:'bold'}}>❌ Vencido</span> :
+                         proximoVencer ? <span style={{color:'#ffc107', fontWeight:'bold'}}>⚠️ Por vencer</span> :
+                         <span style={{color:'#28a745'}}>✅ Vigente</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+          {!list.loading && !list.error && lotesAMostrar.length === 0 && (
+            <p style={{textAlign:'center', padding:'20px', color:'#6c757d'}}>No hay lotes registrados</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DevolucionesView() {
+  const list = useFetch((signal) => api("/devoluciones", { signal }), []);
+  const productos = useFetch((signal) => api("/productos", { signal }), []);
+  const bodegas = useFetch((signal) => api("/bodegas", { signal }), []);
+  const proveedores = useFetch((signal) => api("/proveedores/activos", { signal }), []);
+
+  const [numeroDevolucion, setNumeroDevolucion] = React.useState("");
+  const [tipo, setTipo] = React.useState("A_PROVEEDOR");
+  const [proveedorId, setProveedorId] = React.useState("");
+  const [bodegaId, setBodegaId] = React.useState("");
+  const [motivo, setMotivo] = React.useState("");
+  const [observaciones, setObservaciones] = React.useState("");
+  const [detalles, setDetalles] = React.useState([]);
+  const [status, setStatus] = React.useState("");
+  const [verDetalle, setVerDetalle] = React.useState(null);
+
+  const agregarDetalle = () => {
+    setDetalles([...detalles, { productoId: "", cantidad: 1 }]);
+  };
+
+  const actualizarDetalle = (index, field, value) => {
+    const nuevos = [...detalles];
+    nuevos[index][field] = value;
+    setDetalles(nuevos);
+  };
+
+  const eliminarDetalle = (index) => {
+    setDetalles(detalles.filter((_, i) => i !== index));
+  };
+
+  const crear = async () => {
+    try {
+      if (!bodegaId || detalles.length === 0) {
+        setStatus("❌ Complete todos los campos requeridos y agregue al menos un producto");
+        return;
+      }
+      if (tipo === "A_PROVEEDOR" && !proveedorId) {
+        setStatus("❌ Debe seleccionar un proveedor para devoluciones a proveedor");
+        return;
+      }
+
+      const detallesParaEnviar = detalles.map(d => ({
+        producto: { id: parseInt(d.productoId) },
+        cantidad: parseInt(d.cantidad)
+      }));
+
+      await api("/devoluciones", {
+        method: "POST",
+        body: JSON.stringify({
+          numeroDevolucion: numeroDevolucion || undefined,
+          tipo,
+          proveedor: tipo === "A_PROVEEDOR" && proveedorId ? { id: parseInt(proveedorId) } : null,
+          bodega: { id: parseInt(bodegaId) },
+          motivo,
+          observaciones,
+          detalles: detallesParaEnviar
+        })
+      });
+
+      setNumeroDevolucion(""); setTipo("A_PROVEEDOR"); setProveedorId(""); setBodegaId("");
+      setMotivo(""); setObservaciones(""); setDetalles([]);
+      list.reload();
+      setStatus("✅ Devolución creada exitosamente");
+      setTimeout(() => setStatus(""), 3000);
+    } catch (e) {
+      setStatus("❌ " + String(e.message));
+    }
+  };
+
+  const aprobar = async (id) => {
+    try {
+      await api(`/devoluciones/${id}/aprobar`, { method: "PUT" });
+      list.reload();
+      setStatus("✅ Devolución aprobada");
+      setTimeout(() => setStatus(""), 3000);
+    } catch (e) {
+      setStatus("❌ " + String(e.message));
+    }
+  };
+
+  const completar = async (id) => {
+    try {
+      await api(`/devoluciones/${id}/completar`, { method: "PUT" });
+      list.reload();
+      setStatus("✅ Devolución completada e inventario actualizado");
+      setTimeout(() => setStatus(""), 3000);
+    } catch (e) {
+      setStatus("❌ " + String(e.message));
+    }
+  };
+
+  return (
+    <div>
+      <Header title="Devoluciones" right={<><span className="status">{status}</span><button className="btn" onClick={list.reload}><Icon name="rotate" />Refrescar</button></>} />
+
+      <div className="panel">
+        <div className="panel-header"><strong>Registrar Devolución</strong></div>
+        <div className="panel-body">
+          <div className="form">
+            <div className="field"><label>Número de Devolución (opcional)</label><input value={numeroDevolucion} onChange={e=>setNumeroDevolucion(e.target.value)} placeholder="Se genera automáticamente" /></div>
+            <div className="field">
+              <label>Tipo*</label>
+              <select value={tipo} onChange={e=>{setTipo(e.target.value); if(e.target.value === "DE_CLIENTE") setProveedorId("");}}>
+                <option value="A_PROVEEDOR">A Proveedor</option>
+                <option value="DE_CLIENTE">De Cliente</option>
+              </select>
+            </div>
+            {tipo === "A_PROVEEDOR" && (
+              <div className="field">
+                <label>Proveedor*</label>
+                <select value={proveedorId} onChange={e=>setProveedorId(e.target.value)}>
+                  <option value="">Seleccione...</option>
+                  {Array.isArray(proveedores.data) && proveedores.data.map(p => (
+                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="field">
+              <label>Bodega*</label>
+              <select value={bodegaId} onChange={e=>setBodegaId(e.target.value)}>
+                <option value="">Seleccione...</option>
+                {Array.isArray(bodegas.data) && bodegas.data.map(b => (
+                  <option key={b.id} value={b.id}>{b.nombre}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field"><label>Motivo</label><input value={motivo} onChange={e=>setMotivo(e.target.value)} placeholder="Ej: Producto defectuoso" /></div>
+            <div className="field"><label>Observaciones</label><textarea value={observaciones} onChange={e=>setObservaciones(e.target.value)} rows="2" /></div>
+
+            <div style={{marginTop:'20px', padding:'15px', backgroundColor:'#f8f9fa', borderRadius:'4px'}}>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px'}}>
+                <strong>Productos a Devolver</strong>
+                <button className="btn btn-sm" onClick={agregarDetalle}><Icon name="plus" />Agregar Producto</button>
+              </div>
+              {detalles.map((det, idx) => (
+                <div key={idx} style={{display:'flex', gap:'10px', marginBottom:'10px', alignItems:'center'}}>
+                  <select value={det.productoId} onChange={e=>actualizarDetalle(idx, 'productoId', e.target.value)} style={{flex:2}}>
+                    <option value="">Seleccione producto...</option>
+                    {Array.isArray(productos.data?.content || productos.data) && (productos.data?.content || productos.data).map(p => (
+                      <option key={p.id} value={p.id}>{p.nombre}</option>
+                    ))}
+                  </select>
+                  <input type="number" placeholder="Cantidad" value={det.cantidad} onChange={e=>actualizarDetalle(idx, 'cantidad', e.target.value)} style={{width:'120px'}} min="1" />
+                  <button className="btn btn-sm" onClick={()=>eliminarDetalle(idx)} style={{backgroundColor:'#dc3545', color:'white'}}><Icon name="trash" /></button>
+                </div>
+              ))}
+            </div>
+
+            <div className="actions"><button className="btn" onClick={crear}><Icon name="plus" />Crear Devolución</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="panel mt-8">
+        <div className="panel-header"><strong>Listado de Devoluciones</strong></div>
+        <div className="panel-body">
+          {list.loading && <Loading/>}
+          {list.error && <ErrorState error={list.error} onRetry={list.reload} />}
+          {!list.loading && !list.error && Array.isArray(list.data) && list.data.length > 0 && (
+            <table>
+              <thead>
+                <tr><th>Número</th><th>Tipo</th><th>Proveedor</th><th>Bodega</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr>
+              </thead>
+              <tbody>
+                {list.data.map(d => (
+                  <tr key={d.id}>
+                    <td>{d.numeroDevolucion}</td>
+                    <td><span className="badge">{d.tipo === 'A_PROVEEDOR' ? 'A Proveedor' : 'De Cliente'}</span></td>
+                    <td>{d.proveedor?.nombre || '—'}</td>
+                    <td>{d.bodega?.nombre || '—'}</td>
+                    <td>
+                      <span className={`badge ${
+                        d.estado === 'COMPLETADA' ? 'badge-success' :
+                        d.estado === 'APROBADA' ? 'badge-info' :
+                        d.estado === 'RECHAZADA' ? 'badge-danger' :
+                        'badge-warning'
+                      }`}>{d.estado}</span>
+                    </td>
+                    <td>{new Date(d.fechaDevolucion).toLocaleDateString()}</td>
+                    <td>
+                      <button className="btn btn-sm" onClick={()=>setVerDetalle(d)}><Icon name="eye" /></button>
+                      {d.estado === 'PENDIENTE' && (
+                        <button className="btn btn-sm" onClick={()=>aprobar(d.id)} style={{marginLeft:'5px', backgroundColor:'#17a2b8', color:'white'}}>Aprobar</button>
+                      )}
+                      {d.estado === 'APROBADA' && (
+                        <button className="btn btn-sm" onClick={()=>completar(d.id)} style={{marginLeft:'5px', backgroundColor:'#28a745', color:'white'}}>Completar</button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {!list.loading && !list.error && Array.isArray(list.data) && list.data.length === 0 && (
+            <p style={{textAlign:'center', padding:'20px', color:'#6c757d'}}>No hay devoluciones registradas</p>
+          )}
+        </div>
+      </div>
+
+      {verDetalle && (
+        <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, backgroundColor:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000}} onClick={()=>setVerDetalle(null)}>
+          <div style={{backgroundColor:'white', borderRadius:'8px', padding:'24px', maxWidth:'600px', width:'90%', maxHeight:'80vh', overflow:'auto'}} onClick={e=>e.stopPropagation()}>
+            <h3>Detalle de Devolución {verDetalle.numeroDevolucion}</h3>
+            <div style={{marginTop:'15px'}}>
+              <p><strong>Tipo:</strong> {verDetalle.tipo === 'A_PROVEEDOR' ? 'A Proveedor' : 'De Cliente'}</p>
+              {verDetalle.proveedor && <p><strong>Proveedor:</strong> {verDetalle.proveedor.nombre}</p>}
+              <p><strong>Bodega:</strong> {verDetalle.bodega?.nombre}</p>
+              <p><strong>Estado:</strong> <span className={`badge ${verDetalle.estado === 'COMPLETADA' ? 'badge-success' : 'badge-warning'}`}>{verDetalle.estado}</span></p>
+              <p><strong>Fecha:</strong> {new Date(verDetalle.fechaDevolucion).toLocaleString()}</p>
+              {verDetalle.motivo && <p><strong>Motivo:</strong> {verDetalle.motivo}</p>}
+              {verDetalle.observaciones && <p><strong>Observaciones:</strong> {verDetalle.observaciones}</p>}
+
+              <h4 style={{marginTop:'20px', marginBottom:'10px'}}>Productos:</h4>
+              <table style={{width:'100%'}}>
+                <thead><tr><th>Producto</th><th>Cantidad</th></tr></thead>
+                <tbody>
+                  {verDetalle.detalles && verDetalle.detalles.map((d, idx) => (
+                    <tr key={idx}>
+                      <td>{d.producto?.nombre}</td>
+                      <td>{d.cantidad}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <button className="btn" onClick={()=>setVerDetalle(null)} style={{marginTop:'20px'}}>Cerrar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NotificacionesView() {
+  const list = useFetch((signal) => api("/notificaciones", { signal }), []);
+  const count = useFetch((signal) => api("/notificaciones/count", { signal }), []);
+
+  const [titulo, setTitulo] = React.useState("");
+  const [mensaje, setMensaje] = React.useState("");
+  const [tipo, setTipo] = React.useState("OTRO");
+  const [status, setStatus] = React.useState("");
+  const [filtro, setFiltro] = React.useState("todas");
+
+  const crear = async () => {
+    try {
+      if (!titulo || !mensaje) {
+        setStatus("❌ Complete todos los campos requeridos");
+        return;
+      }
+
+      await api("/notificaciones", {
+        method: "POST",
+        body: JSON.stringify({ titulo, mensaje, tipo })
+      });
+
+      setTitulo(""); setMensaje(""); setTipo("OTRO");
+      list.reload();
+      count.reload();
+      setStatus("✅ Notificación creada exitosamente");
+      setTimeout(() => setStatus(""), 3000);
+    } catch (e) {
+      setStatus("❌ " + String(e.message));
+    }
+  };
+
+  const marcarComoLeida = async (id) => {
+    try {
+      await api(`/notificaciones/${id}/leer`, { method: "PUT" });
+      list.reload();
+      count.reload();
+    } catch (e) {
+      setStatus("❌ " + String(e.message));
+    }
+  };
+
+  const marcarTodasLeidas = async () => {
+    try {
+      await api("/notificaciones/leer-todas", { method: "PUT" });
+      list.reload();
+      count.reload();
+      setStatus("✅ Todas las notificaciones marcadas como leídas");
+      setTimeout(() => setStatus(""), 3000);
+    } catch (e) {
+      setStatus("❌ " + String(e.message));
+    }
+  };
+
+  const cargarNoLeidas = async () => {
+    try {
+      const data = await api("/notificaciones/no-leidas");
+      list.setData(data);
+      setFiltro("no-leidas");
+    } catch (e) {
+      setStatus("❌ " + String(e.message));
+    }
+  };
+
+  const cargarTodas = () => {
+    setFiltro("todas");
+    list.reload();
+  };
+
+  const notificacionesAMostrar = Array.isArray(list.data) ? list.data : [];
+
+  const getIconoTipo = (tipo) => {
+    switch(tipo) {
+      case 'STOCK_BAJO': return '⚠️';
+      case 'PRODUCTO_VENCIDO': return '❌';
+      case 'PRODUCTO_POR_VENCER': return '⏰';
+      case 'ORDEN_RECIBIDA': return '📦';
+      default: return '🔔';
+    }
+  };
+
+  const getTipoLabel = (tipo) => {
+    switch(tipo) {
+      case 'STOCK_BAJO': return 'Stock Bajo';
+      case 'PRODUCTO_VENCIDO': return 'Producto Vencido';
+      case 'PRODUCTO_POR_VENCER': return 'Por Vencer';
+      case 'ORDEN_RECIBIDA': return 'Orden Recibida';
+      default: return 'Otro';
+    }
+  };
+
+  return (
+    <div>
+      <Header title="Notificaciones y Alertas" right={
+        <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+          <span className="status">{status}</span>
+          {count.data?.count > 0 && (
+            <span style={{padding:'4px 8px', backgroundColor:'#dc3545', color:'white', borderRadius:'12px', fontSize:'12px', fontWeight:'bold'}}>
+              {count.data.count} sin leer
+            </span>
+          )}
+          <button className="btn" onClick={list.reload}><Icon name="rotate" />Refrescar</button>
+        </div>
+      } />
+
+      <div className="panel">
+        <div className="panel-header"><strong>Crear Notificación</strong></div>
+        <div className="panel-body">
+          <div className="form">
+            <div className="field">
+              <label>Tipo*</label>
+              <select value={tipo} onChange={e=>setTipo(e.target.value)}>
+                <option value="STOCK_BAJO">Stock Bajo</option>
+                <option value="PRODUCTO_VENCIDO">Producto Vencido</option>
+                <option value="PRODUCTO_POR_VENCER">Por Vencer</option>
+                <option value="ORDEN_RECIBIDA">Orden Recibida</option>
+                <option value="OTRO">Otro</option>
+              </select>
+            </div>
+            <div className="field"><label>Título*</label><input value={titulo} onChange={e=>setTitulo(e.target.value)} placeholder="Ej: Alerta de inventario" /></div>
+            <div className="field"><label>Mensaje*</label><textarea value={mensaje} onChange={e=>setMensaje(e.target.value)} rows="3" placeholder="Descripción de la notificación..." /></div>
+            <div className="actions"><button className="btn" onClick={crear}><Icon name="plus" />Crear Notificación</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="panel mt-8">
+        <div className="panel-header">
+          <strong>Listado de Notificaciones</strong>
+          <div style={{marginLeft:'auto', display:'flex', gap:'10px'}}>
+            <button className={`btn btn-sm ${filtro === 'todas' ? 'btn-primary' : ''}`} onClick={cargarTodas}>Todas</button>
+            <button className={`btn btn-sm ${filtro === 'no-leidas' ? 'btn-primary' : ''}`} onClick={cargarNoLeidas}>No Leídas</button>
+            <button className="btn btn-sm" onClick={marcarTodasLeidas}>Marcar Todas Leídas</button>
+          </div>
+        </div>
+        <div className="panel-body">
+          {list.loading && <Loading/>}
+          {list.error && <ErrorState error={list.error} onRetry={list.reload} />}
+          {!list.loading && !list.error && notificacionesAMostrar.length > 0 && (
+            <div style={{display:'flex', flexDirection:'column', gap:'12px'}}>
+              {notificacionesAMostrar.map(n => (
+                <div
+                  key={n.id}
+                  style={{
+                    padding:'16px',
+                    border:'1px solid #dee2e6',
+                    borderRadius:'8px',
+                    backgroundColor: n.leida ? '#f8f9fa' : '#fff',
+                    borderLeft: n.leida ? '4px solid #6c757d' : '4px solid #007bff',
+                    cursor: !n.leida ? 'pointer' : 'default',
+                    transition:'all 0.2s'
+                  }}
+                  onClick={() => !n.leida && marcarComoLeida(n.id)}
+                >
+                  <div style={{display:'flex', alignItems:'start', gap:'12px'}}>
+                    <span style={{fontSize:'24px'}}>{getIconoTipo(n.tipo)}</span>
+                    <div style={{flex:1}}>
+                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'start', marginBottom:'4px'}}>
+                        <div>
+                          <strong style={{fontSize:'16px'}}>{n.titulo}</strong>
+                          {!n.leida && <span style={{marginLeft:'8px', padding:'2px 6px', backgroundColor:'#007bff', color:'white', borderRadius:'4px', fontSize:'10px'}}>NUEVA</span>}
+                        </div>
+                        <span style={{fontSize:'12px', color:'#6c757d'}}>{new Date(n.createdAt).toLocaleString()}</span>
+                      </div>
+                      <p style={{margin:'4px 0', color:'#495057'}}>{n.mensaje}</p>
+                      <div style={{display:'flex', gap:'8px', marginTop:'8px'}}>
+                        <span className="badge">{getTipoLabel(n.tipo)}</span>
+                        {n.leida && <span className="badge badge-success">Leída</span>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {!list.loading && !list.error && notificacionesAMostrar.length === 0 && (
+            <p style={{textAlign:'center', padding:'20px', color:'#6c757d'}}>No hay notificaciones</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Main App with authentication
 function App() {
   const [route, setRoute] = React.useState("dashboard");
@@ -1228,6 +2232,11 @@ function App() {
           {route === 'productos' && <ProductosView />}
           {route === 'movimientos' && <MovimientosView />}
           {route === 'inventario' && <InventarioView />}
+          {route === 'proveedores' && <ProveedoresView />}
+          {route === 'ordenes' && <OrdenesCompraView />}
+          {route === 'lotes' && <LotesView />}
+          {route === 'devoluciones' && <DevolucionesView />}
+          {route === 'notificaciones' && <NotificacionesView />}
           {route === 'reportes' && <ReportesView />}
           {route === 'auditoria' && <AuditoriaView />}
           {route === 'usuarios' && (user?.rol === 'ADMIN' ? <Register submitPath="/auth/register" defaultRol="EMPLEADO" allowRoleSelect={true} onSuccess={()=>{}} onLoginClick={()=>setRoute('dashboard')} /> : <div className="panel"><div className="panel-body">403</div></div>)}

@@ -45,6 +45,8 @@ public class AuthController {
                 .username(u.getUsername())
                 .rol(u.getRol().name())
                 .id(u.getId())
+                .empId(u.getEmpId())
+                .nombreCompleto(u.getNombreCompleto())
                 .build();
         return ResponseEntity.ok(response);
     }
@@ -77,6 +79,7 @@ public class AuthController {
                 .nombreCompleto(request.getNombreCompleto())
                 .email(request.getEmail())
                 .cedula(request.getCedula())
+                .empId(request.getEmpId())
                 .empresa(creador.getEmpresa())
                 .build();
         Usuario saved = usuarioRepository.save(usuario);
@@ -103,6 +106,7 @@ public class AuthController {
                 .nombreCompleto(request.getNombreCompleto())
                 .email(request.getEmail())
                 .cedula(request.getCedula())
+                .empId(request.getEmpId())
                 .empresa(empresa)
                 .build();
         Usuario saved = usuarioRepository.save(usuario);

@@ -276,12 +276,12 @@ public class MovimientoService {
         InventarioBodega inventario = inventarioBodegaRepository
                 .findByBodegaIdAndProductoId(bodega.getId(), producto.getId())
                 .orElseThrow(() -> new BusinessException(
-                        String.format("El producto '%s' no existe en la bodega '%s'",
+                        String.format("❌ El producto '%s' no existe en la BODEGA DE ORIGEN '%s'. Debe crear primero el inventario para este producto en esa bodega.",
                                 producto.getNombre(), bodega.getNombre())));
 
         if (inventario.getStock() < cantidadRequerida) {
             throw new BusinessException(
-                    String.format("Stock insuficiente de '%s' en bodega '%s'. Disponible: %d, Requerido: %d",
+                    String.format("❌ Stock insuficiente de '%s' en BODEGA DE ORIGEN '%s'. Disponible: %d, Requerido: %d",
                             producto.getNombre(), bodega.getNombre(), inventario.getStock(), cantidadRequerida));
         }
     }
@@ -328,8 +328,8 @@ public class MovimientoService {
         InventarioBodega inventario = inventarioBodegaRepository
                 .findByBodegaIdAndProductoId(bodega.getId(), producto.getId())
                 .orElseGet(() -> {
-                    // Si no existe inventario, crear uno nuevo (útil para ENTRADA)
-                    log.info("Creando nuevo inventario para producto {} en bodega {}",
+                    // Si no existe inventario, crear uno nuevo (útil para ENTRADA y TRANSFERENCIA)
+                    log.info("✅ Creando automáticamente nuevo inventario para producto '{}' en bodega de DESTINO '{}'",
                             producto.getNombre(), bodega.getNombre());
                     InventarioBodega inv = new InventarioBodega();
                     inv.setBodega(bodega);
@@ -340,26 +340,27 @@ public class MovimientoService {
                     return inv;
                 });
 
-        int nuevoStock = inventario.getStock() + ajuste;
+        int stockAnterior = inventario.getStock();
+        int nuevoStock = stockAnterior + ajuste;
 
         if (nuevoStock < 0) {
             throw new BusinessException(
-                    String.format("Stock no puede ser negativo para producto '%s' en bodega '%s'",
-                            producto.getNombre(), bodega.getNombre()));
+                    String.format("❌ Stock no puede ser negativo para producto '%s' en bodega '%s'. Stock actual: %d, Intento de ajuste: %d",
+                            producto.getNombre(), bodega.getNombre(), stockAnterior, ajuste));
         }
 
         if (nuevoStock > inventario.getStockMaximo()) {
             throw new BusinessException(
-                    String.format("Stock excede el máximo permitido (%d) para producto '%s' en bodega '%s'",
-                            inventario.getStockMaximo(), producto.getNombre(), bodega.getNombre()));
+                    String.format("❌ Stock excede el máximo permitido (%d) para producto '%s' en bodega '%s'. Stock resultante sería: %d",
+                            inventario.getStockMaximo(), producto.getNombre(), bodega.getNombre(), nuevoStock));
         }
 
         inventario.setStock(nuevoStock);
         inventarioBodegaRepository.save(inventario);
 
-        log.debug("Stock actualizado: {} {} en bodega {} (antes: {}, ajuste: {}, después: {})",
+        log.info("✅ Stock actualizado: Producto '{}' en bodega '{}' → Antes: {}, Ajuste: {}{}, Después: {}",
                 producto.getNombre(), bodega.getNombre(),
-                inventario.getStock() - ajuste, ajuste, nuevoStock);
+                stockAnterior, (ajuste > 0 ? "+" : ""), ajuste, nuevoStock);
     }
 
     private MovimientoResponse toResponse(Movimiento movimiento) {
